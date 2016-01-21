@@ -1,0 +1,5 @@
+dist_break
+======================
+
+Distributed video transcoder based on HandBrake and Celery.
+
