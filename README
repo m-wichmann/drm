@@ -1,5 +1,26 @@
-dist_break
-======================
+# dist_break
 
 Distributed video transcoder based on HandBrake and Celery.
 
+
+## Dependencies
+
+Install all python requirements using pip:
+
+  pip install -r requirements.txt
+
+You also have to install Handbrake or rather HandBrakeCLI on all slaves.
+
+  apt install handbrake-cli
+
+The master needs to install a broker for celery. Currently only RabbitMQ is
+supported and tested. You should configure a user for dist_break in RabbitMQ.
+
+  apt install rabbitmq-server
+
+
+## Links
+
+[1] handbrake.fr
+[2] celeryproject.org
+[3] rabbitmq.com

@@ -35,8 +35,7 @@ logger = logging.getLogger('dist_hb')
 FTP_SERVER_PORT = 50000
 HANDBRAKE_CLI_BIN = 'HandBrakeCLI'
 
-# TODO: get ip from cmdline
-app = Celery('tasks', backend='rpc://', broker='amqp://db_user:db_user@192.168.10.9')
+app = Celery('tasks', backend='rpc://')
 
 
 class Track(object):
@@ -482,8 +481,7 @@ def slave():
 def parse_cfg(cfg_path):
     hb_config = None
     rip_config = None
-    ip_address = None
-    credentials = None
+    broker = None
     try:
         with open(cfg_path, 'r') as fd:
             temp = json.load(fd)
@@ -495,23 +493,33 @@ def parse_cfg(cfg_path):
         rip_config = RipConfig(a_lang = temp['rip_config']['a_tracks'],
                                s_lang = temp['rip_config']['s_tracks'],
                                len_range = (temp['rip_config']['min_dur'], temp['rip_config']['max_dur']))
-        ip_address = temp["ip"]
-        credentials = temp["broker_cred"]
+        broker = (temp['broker'].get('ip'), temp['broker'].get('port'), temp['broker'].get('username'), temp['broker'].get('password'))
     except FileNotFoundError:
         logger.warning('Could not open config, using defaults')
+    except ValueError:
+        logger.warning('Config invalid, using defaults')
     except KeyError:
         logger.warning('Config invalid, using defaults')
 
-    if hb_config is None or rip_config is None:
+    if hb_config is None or rip_config is None or broker is None:
         hb_config = HandbrakeConfig()
         rip_config = RipConfig()
-        ip_address = '127.0.0.1'
-        credentials = None
+        broker = (None, None, None, None)
 
-    return hb_config, rip_config, ip_address, credentials
+    return hb_config, rip_config, broker
 
 
-def main():
+def build_broker_url(user, password, ip, port):
+    broker_url  = 'amqp://'
+    broker_url += str(user) if user is not None else ''
+    broker_url += (':' + str(password)) if password is not None else ''
+    broker_url += '@' if user is not None else ''
+    broker_url += str(ip) if ip is not None else ''
+    broker_url += (':' + str(port)) if port is not None else ''
+    return broker_url
+
+
+def dist_break():
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--master', dest='master',  action='store_true')
     parser.add_argument('--slave',  dest='slave',   action='store_true')
@@ -521,9 +529,11 @@ def main():
     parser.add_argument('--cfg',    dest='config',  action='store',      default='dist_break.cfg')
     args = parser.parse_args()
 
-    (args.hb_config, args.rip_config, args.ip, args.cred) = parse_cfg(args.config)
+    (args.hb_config, args.rip_config, args.broker) = parse_cfg(args.config)
 
-    #app.connection(url='192.168.10.244', userid='test', password='bla')
+    broker_url = build_broker_url(args.broker[2], args.broker[3], args.broker[0], args.broker[1])
+
+    app.conf.update(BROKER_URL = broker_url)
 
     if args.tempdir is None:
         tempdir = tempfile.TemporaryDirectory()
@@ -541,4 +551,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    dist_break()
