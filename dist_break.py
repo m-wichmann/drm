@@ -166,7 +166,7 @@ class Job(object):
         ftp.rem_user(self.name)
 
     def run(self, job_runner):
-        self.job_result = job_runner(self, self.args.ip, FTP_SERVER_PORT)
+        self.job_result = job_runner(self, self.args.broker[0], FTP_SERVER_PORT)
 
     def join(self):
         if isinstance(self.job_result, AsyncResult):
