@@ -212,7 +212,7 @@ class Handbrake(object):
                 continue
             elif "  + duration:" in line:
                 temp = line[14:].split(':')
-                title_temp.duration = datetime.time(hour=int(temp[0]), minute=int(temp[1]), second=int(temp[2]))
+                title_temp.duration = datetime.timedelta(hours=int(temp[0]), minutes=int(temp[1]), seconds=int(temp[2]))
                 continue
             elif '+ title ' in line:
                 title_temp = Title(int(line[8:-1]))
@@ -252,8 +252,8 @@ class Handbrake(object):
         }
         iso639_alt_lut.update({v: k for k, v in iso639_alt_lut.items()})
 
-        min_time = datetime.time(hour=0, minute=min_time, second=0)
-        max_time = datetime.time(hour=0, minute=max_time, second=0)
+        min_time = datetime.timedelta(minutes=min_time)
+        max_time = datetime.timedelta(minutes=max_time)
 
         a_lang_list = a_lang_list + [iso639_alt_lut[e] for e in a_lang_list if e in iso639_alt_lut]
         s_lang_list = s_lang_list + [iso639_alt_lut[e] for e in s_lang_list if e in iso639_alt_lut]
@@ -289,11 +289,14 @@ class Handbrake(object):
         cmd.extend(['-e', 'x264'])
         cmd.extend(['-q', str(quality)])
         cmd.extend(['-E', 'copy'])
+        cmd.extend(['--audio-fallback', 'ffac3'])
         cmd.extend(['--loose-anamorphic'])
+        cmd.extend(['--modulus', '2'])
         cmd.extend(['--decomb'])
         cmd.extend(['--x264-preset', h264_preset])
         cmd.extend(['--x264-profile', h264_profile])
         cmd.extend(['--h264-level', h264_level])
+
         return cmd
 
 
