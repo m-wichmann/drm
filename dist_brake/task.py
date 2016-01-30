@@ -28,6 +28,7 @@ def set_broker_url(user=None, password=None, ip=None, port=None):
 
 
 def start_worker(ip, user, password):
+    global server_ip
     server_ip = ip
 
     set_broker_url(user, password, ip)
