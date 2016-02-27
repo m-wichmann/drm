@@ -89,7 +89,8 @@ def parse_cfg_master(cfg_path):
             rip_config = RipConfig(a_lang = data['rip_config']['a_tracks'],
                                    s_lang = data['rip_config']['s_tracks'],
                                    len_range = (data['rip_config']['min_dur'],
-                                                data['rip_config']['max_dur']))
+                                                data['rip_config']['max_dur']),
+                                   fixes = data['rip_config']['fixes'])
             in_path = data['in_path']
             out_path = data['out_path']
         except KeyError:

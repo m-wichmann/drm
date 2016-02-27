@@ -171,3 +171,17 @@ class Handbrake(object):
             if i != len(track_list) - 1:
                 temp += ','
         return temp
+
+    @staticmethod
+    def remove_duplicate_tracks(titles):
+        """Workaroud for stupid DVDs, that have identical copies of the same
+        tracks. Might throw away some false positives, since only title
+        duration and tracks are compared."""
+        ret = []
+        l = None
+        for t in titles:
+            if t != l:
+                ret.append(t)
+            l = t
+
+        return ret

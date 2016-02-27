@@ -4,6 +4,11 @@ class Track(object):
         self.index = index
         self.lang  = lang
 
+    def __eq__(self, other):
+        if other is None:
+            return False
+        return ((self.index == other.index) and (self.lang == other.lang))
+
     def __str__(self):
         return self.lang
 
@@ -16,6 +21,11 @@ class Title(object):
         self.duration = ""
         self.a_tracks = []
         self.s_tracks = []
+
+    def __eq__(self, other):
+        if other is None:
+            return False
+        return ((self.duration == other.duration) and (self.a_tracks == other.a_tracks) and (self.s_tracks == other.s_tracks))
 
     def __str__(self):
         ret = "Title: {num} - {duration} - A: {a_tracks} S: {s_tracks}"
@@ -50,7 +60,11 @@ class HandbrakeConfig(object):
         self.h264_level = h264_level
 
 class RipConfig(object):
-    def __init__(self, a_lang=['eng', 'deu'], s_lang=['eng', 'deu'], len_range=(15, 50)):
+    """
+        Possible fixes: remove_duplicate_tracks
+    """
+    def __init__(self, a_lang=['eng', 'deu'], s_lang=['eng', 'deu'], len_range=(15, 50), fixes=[]):
         self.a_lang = a_lang
         self.s_lang = s_lang
         self.len_range = len_range
+        self.fixes = fixes
