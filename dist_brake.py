@@ -26,6 +26,7 @@ import json
 from dist_brake.data import HandbrakeConfig, RipConfig, Disc
 from dist_brake.job import Job
 from dist_brake.task import start_worker, handbrake_task
+from dist_brake.handbrake import Handbrake
 
 
 import logging
@@ -112,14 +113,71 @@ def parse_cfg_slave(cfg_path):
     return (ip, user, password)
 
 
+
+
+
+def rip(out_dir):
+    while (1):
+        name = input('Please enter disc name: ')
+
+        if name == '':
+            sys.exit(0)
+
+        name = name.upper()
+
+        temp_dir = tempfile.TemporaryDirectory()
+        out_path = os.path.join(out_dir, name + '.iso')
+
+        cmd = ['dvdbackup', '-M', '-i', '/dev/dvd', '-o', temp_dir.name, '-n', name]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate()
+
+        cmd = ['genisoimage', '-dvd-video', '-o', out_path, os.path.join(temp_dir.name, name)]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate()
+
+        print('Done {}!'.format(name))
+        os.system('eject')
+
+
+
+
+def list_titles(target_dir):
+    for root, dirs, files in os.walk(target_dir):
+        for f in files:
+            print(os.path.join(root, f), end='')
+            l = Handbrake.scan_disc(os.path.join(root, f))
+            l = Handbrake.filter_titles(l, 15, 250, ['deu', 'eng', 'spa', 'jpa'], ['deu', 'eng', 'spa', 'jpa'])
+
+            print(" =>", len(l))
+
+            if (len(l) == 0):
+                print("  ==> Error")
+
+
 def dist_brake():
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--master', dest='master',  action='store', default=None)
     parser.add_argument('--slave',  dest='slave',   action='store', default=None)
+    parser.add_argument('--rip',    dest='rip',     action='store_true', default=None)
+    parser.add_argument('--list',   dest='list',    action='store_true', default=None)
+    parser.add_argument('--dir',    dest='dir',     action='store', default=None)
     args = parser.parse_args()
 
+    if args.rip:
+        if args.dir is None:
+            sys.exit('please provide --dir')
+        rip(args.dir)
+        sys.exit(0)
+
+    if args.list:
+        if args.dir is None:
+            sys.exit('please provide --dir')
+        list_titles(args.dir)
+        sys.exit(0)
+
     if bool(args.master) == bool(args.slave):
-        sys.exit('please select either master, slave or sample!')
+        sys.exit('please select either master, slave, rip or list!')
 
     if args.master is not None:
         (hb_config, rip_config, in_path, out_path) = parse_cfg_master(args.master)
