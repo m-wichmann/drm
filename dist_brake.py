@@ -118,7 +118,7 @@ def parse_cfg_slave(cfg_path):
 
 def rip(out_dir):
     while (1):
-        name = input('Please enter disc name: ')
+        name = input('Please enter disc name (empty to end): ')
 
         if name == '':
             sys.exit(0)
@@ -128,6 +128,8 @@ def rip(out_dir):
         temp_dir = tempfile.TemporaryDirectory()
         out_path = os.path.join(out_dir, name + '.iso')
 
+        time_started = datetime.datetime.now()
+
         cmd = ['dvdbackup', '-M', '-i', '/dev/dvd', '-o', temp_dir.name, '-n', name]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate()
@@ -136,8 +138,17 @@ def rip(out_dir):
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate()
 
-        print('Done {}!'.format(name))
+        time_done = datetime.datetime.now()
+
+        # TODO: check ret value of dvdbackup and genisoimage
+        # TODO: implement check_env
+
         os.system('eject')
+
+        try:
+            print('Done {} [{} GB, {}]!'.format(name, os.path.getsize(out_path) / (2**30), time_done - time_started))
+        except FileNotFoundError:
+            print('Failed {} [{}]'.format(name, time_done - time_started))
 
 
 
