@@ -138,7 +138,6 @@ class Handbrake(object):
 
         return cmd
 
-
     @staticmethod
     def encode_titles(hb_config, title_list, in_path, out_path):
         logging.info('encoding titles...')
@@ -178,10 +177,7 @@ class Handbrake(object):
         tracks. Might throw away some false positives, since only title
         duration and tracks are compared."""
         ret = []
-        l = None
         for t in titles:
-            if t != l:
+            if t not in ret:
                 ret.append(t)
-            l = t
-
         return ret

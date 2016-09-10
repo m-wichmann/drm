@@ -1,5 +1,6 @@
 from threading import Thread
 from ftplib import FTP
+from ftplib import error_perm
 from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler
 from pyftpdlib.servers import FTPServer, ThreadedFTPServer
@@ -84,7 +85,10 @@ class FTPClient(object):
         with open(dest, 'wb') as fd:
             def callback(data):
                 fd.write(data)
-            self.ftp.retrbinary('RETR {ftp_file}'.format(ftp_file=source), callback)
+            try:
+                self.ftp.retrbinary('RETR {ftp_file}'.format(ftp_file=source), callback)
+            except error_perm:
+                logger.error('Could not retrieve file from master.')
 
     def put_file(self, source, dest):
         logging.info('copying {} to {}'.format(source, dest))
