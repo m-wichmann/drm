@@ -13,11 +13,6 @@ import subprocess
 
 from celery.task.control import discard_all
 
-from ftplib import FTP
-from pyftpdlib.authorizers import DummyAuthorizer
-from pyftpdlib.handlers import FTPHandler
-from pyftpdlib.servers import FTPServer, ThreadedFTPServer
-
 from dist_brake.data import HandbrakeConfig, RipConfig, Disc
 from dist_brake.job import Job
 from dist_brake.task import start_worker, handbrake_task
@@ -35,43 +30,47 @@ logger = logging.getLogger('dist_hb')
 
 
 
-def master_teardown_thread(job_queue):
-    # TODO: add some way to signal that all jobs have been added
+def master_teardown_thread(ready_job_queue):
+    while True:
+        job = ready_job_queue.get()
+        print('Teardown ', job)
+        job.teardown_env()
+        if job.state == Job.DONE:
+            print('Job done...')
+            try:
+                shutil.move(job.disc.local_path, job.out_path)
+            except FileNotFoundError:
+                logger.error('Could not move file to out path.')
+        else:
+            print('Job failed...')
+        ready_job_queue.task_done()
 
+
+
+def master_check_tasks_thread(available_job_queue, ready_job_queue):
     job_list = []
     while True:
-        try:
-            while True:
-                job = job_queue.get(block=False)
-                job_list.append(job)
-        except queue.Empty:
-            pass
-
+        if not available_job_queue.empty():
+            job = available_job_queue.get()
+            job_list.append(job)
+        else:
+            time.sleep(2)
         remove_list = []
         for job in job_list:
             if job.is_ready():
-                print('Teardown ', job)
-                job.teardown_env()
-                if job.state == Job.DONE:
-                    print('Job done...')
-                    try:
-                        shutil.move(job.disc.local_path, job.out_path)
-                    except FileNotFoundError:
-                        logger.error('Could not move file to out path.')
-                else:
-                    print('Job failed...')
+                ready_job_queue.put(job)
+                available_job_queue.task_done()
                 remove_list.append(job)
-
         for job in remove_list:
             print('Removing ', job)
             job_list.remove(job)
 
-        time.sleep(5)
 
 
 def master(hb_config, rip_config, in_path, out_path):
     # discard possible jobs from before
     try:
+        # TODO: Move this call to funtion in task of job module?!
         discard_all()
     except OSError:
         print('Could not connect to host')
@@ -85,8 +84,13 @@ def master(hb_config, rip_config, in_path, out_path):
         for f in files:
             disc_list.append(Disc(os.path.join(root, f), f))
 
-    job_queue = queue.Queue()
-    teardown_thread = threading.Thread(target=master_teardown_thread, args=(job_queue,))
+    available_job_queue = queue.Queue()
+    ready_job_queue = queue.Queue()
+    check_thread = threading.Thread(target=master_check_tasks_thread, args=(available_job_queue, ready_job_queue))
+    check_thread.daemon = True
+    check_thread.start()
+    teardown_thread = threading.Thread(target=master_teardown_thread, args=(ready_job_queue,))
+    teardown_thread.daemon = True
     teardown_thread.start()
 
     for d in disc_list:
@@ -94,11 +98,11 @@ def master(hb_config, rip_config, in_path, out_path):
         job = Job(d, rip_config, hb_config, in_path, out_path)
         try:
             job.run(handbrake_task.delay)
-            job_queue.put(job, block=False)
+            available_job_queue.put(job)
         except ConnectionResetError:
             print('Could not run job. Maybe broker credentials invalid?!')
-
-    teardown_thread.join()
+    available_job_queue.join()
+    ready_job_queue.join()
 
 
 
