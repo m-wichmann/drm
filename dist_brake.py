@@ -1,29 +1,22 @@
 #!/usr/bin/env python3
 
-from celery import Celery
-from celery.result import AsyncResult
-from celery.task.control import discard_all
-import argparse
 import os
 import sys
+import json
+import time
+import shutil
+import queue
+import tempfile
+import argparse
+import threading
 import subprocess
-import signal
-from threading import Thread
-import locale
-import codecs
+
+from celery.task.control import discard_all
+
+from ftplib import FTP
 from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler
 from pyftpdlib.servers import FTPServer, ThreadedFTPServer
-from ftplib import FTP
-import tempfile
-import time
-import uuid
-import hashlib
-import shutil
-import datetime
-import json
-import threading
-import queue
 
 from dist_brake.data import HandbrakeConfig, RipConfig, Disc
 from dist_brake.job import Job
@@ -61,7 +54,10 @@ def master_teardown_thread(job_queue):
                 job.teardown_env()
                 if job.state == Job.DONE:
                     print('Job done...')
-                    shutil.move(job.disc.local_path, job.out_path)
+                    try:
+                        shutil.move(job.disc.local_path, job.out_path)
+                    except FileNotFoundError:
+                        logger.error('Could not move file to out path.')
                 else:
                     print('Job failed...')
                 remove_list.append(job)
@@ -105,6 +101,7 @@ def master(hb_config, rip_config, in_path, out_path):
     teardown_thread.join()
 
 
+
 def parse_cfg_master(cfg_path):
     with open(cfg_path, 'r') as fd:
         try:
@@ -126,6 +123,7 @@ def parse_cfg_master(cfg_path):
     return (hb_config, rip_config, in_path, out_path)
 
 
+
 def parse_cfg_slave(cfg_path):
     with open(cfg_path, 'r') as fd:
         try:
@@ -137,8 +135,6 @@ def parse_cfg_slave(cfg_path):
             sys.exit('slave config not valid')
 
     return (ip, user, password)
-
-
 
 
 
@@ -178,7 +174,6 @@ def rip(out_dir):
 
 
 
-
 def list_titles(target_dir):
     for root, dirs, files in os.walk(target_dir):
         for f in files:
@@ -190,6 +185,7 @@ def list_titles(target_dir):
 
             if (len(l) == 0):
                 print("  ==> Error")
+
 
 
 def dist_brake():
