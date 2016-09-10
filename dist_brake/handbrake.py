@@ -7,7 +7,6 @@ from dist_brake.data import Title, Track
 
 import logging
 logger = logging.getLogger('dist_hb')
-logger.setLevel("WARNING")
 
 
 HANDBRAKE_CLI_BIN = 'HandBrakeCLI'

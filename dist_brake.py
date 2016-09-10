@@ -22,6 +22,8 @@ import hashlib
 import shutil
 import datetime
 import json
+import threading
+import queue
 
 from dist_brake.data import HandbrakeConfig, RipConfig, Disc
 from dist_brake.job import Job
@@ -40,6 +42,36 @@ logger = logging.getLogger('dist_hb')
 
 
 
+def master_teardown_thread(job_queue):
+    # TODO: add some way to signal that all jobs have been added
+
+    job_list = []
+    while True:
+        try:
+            while True:
+                job = job_queue.get(block=False)
+                job_list.append(job)
+        except queue.Empty:
+            pass
+
+        remove_list = []
+        for job in job_list:
+            if job.is_ready():
+                print('Teardown ', job)
+                job.teardown_env()
+                if job.state == Job.DONE:
+                    print('Job done...')
+                    shutil.move(job.disc.local_path, job.out_path)
+                else:
+                    print('Job failed...')
+                remove_list.append(job)
+
+        for job in remove_list:
+            print('Removing ', job)
+            job_list.remove(job)
+
+        time.sleep(5)
+
 
 def master(hb_config, rip_config, in_path, out_path):
     # discard possible jobs from before
@@ -57,26 +89,20 @@ def master(hb_config, rip_config, in_path, out_path):
         for f in files:
             disc_list.append(Disc(os.path.join(root, f), f))
 
-    job_list = []
+    job_queue = queue.Queue()
+    teardown_thread = threading.Thread(target=master_teardown_thread, args=(job_queue,))
+    teardown_thread.start()
+
     for d in disc_list:
         logger.info('creating job {}'.format(d))
         job = Job(d, rip_config, hb_config, in_path, out_path)
         try:
             job.run(handbrake_task.delay)
-            job_list.append(job)
+            job_queue.put(job, block=False)
         except ConnectionResetError:
             print('Could not run job. Maybe broker credentials invalid?!')
 
-    for job in job_list:
-        logger.info('waiting on job {}'.format(job))
-        job.join()
-        job.teardown_env()
-
-        if job.state == Job.DONE:
-            print('Job done...')
-            shutil.move(job.disc.local_path, out_path)
-        else:
-            print('Job failed...')
+    teardown_thread.join()
 
 
 def parse_cfg_master(cfg_path):

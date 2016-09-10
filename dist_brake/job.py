@@ -92,6 +92,8 @@ class Job(object):
     def run(self, job_runner):
         self.job_result = job_runner(self)
 
-    def join(self):
+    def is_ready(self):
         if isinstance(self.job_result, AsyncResult):
-            self.job_result = self.job_result.get()
+            return self.job_result.ready()
+        else:
+            return True
