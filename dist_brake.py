@@ -42,35 +42,41 @@ logger = logging.getLogger('dist_hb')
 
 
 
-def master_teardown_thread(job_queue):
+def master_teardown_thread(job_queue, hashing_done_event):
     # TODO: add some way to signal that all jobs have been added
 
     job_list = []
-    while True:
+    while ((not hashing_done_event.is_set()) or (len(job_list) != 0) or (not job_queue.empty())):
         try:
             while True:
                 job = job_queue.get(block=False)
-                job_list.append(job)
+                try:
+                    job.run(handbrake_task.delay)
+                    job_list.append(job)
+                except ConnectionResetError:
+                    logger.error('Could not run job. Maybe broker credentials invalid?!')
         except queue.Empty:
             pass
 
         remove_list = []
         for job in job_list:
             if job.is_ready():
-                print('Teardown ', job)
+                logger.info('Teardown {}'.format(job))
                 job.teardown_env()
                 if job.state == Job.DONE:
-                    print('Job done...')
+                    logger.info('Job done...')
                     shutil.move(job.disc.local_path, job.out_path)
                 else:
-                    print('Job failed...')
+                    logger.info('Job failed...')
                 remove_list.append(job)
 
         for job in remove_list:
-            print('Removing ', job)
+            logger.info('Removing {}'.format(job))
             job_list.remove(job)
 
         time.sleep(5)
+
+    logger.info('Ending teardown thread')
 
 
 def master(hb_config, rip_config, in_path, out_path):
@@ -78,29 +84,29 @@ def master(hb_config, rip_config, in_path, out_path):
     try:
         discard_all()
     except OSError:
-        print('Could not connect to host')
+        logger.error('Could not connect to host')
         sys.exit(-1)
 
     disc_list = []
     for root, dirs, files in os.walk(in_path):
         if dirs:
-            print('Subdirs currently not supported!')
+            logger.error('Subdirs currently not supported!')
             break
         for f in files:
             disc_list.append(Disc(os.path.join(root, f), f))
 
     job_queue = queue.Queue()
-    teardown_thread = threading.Thread(target=master_teardown_thread, args=(job_queue,))
+    hashing_done_event = threading.Event()
+    teardown_thread = threading.Thread(target=master_teardown_thread, args=(job_queue, hashing_done_event))
     teardown_thread.start()
 
     for d in disc_list:
         logger.info('creating job {}'.format(d))
         job = Job(d, rip_config, hb_config, in_path, out_path)
-        try:
-            job.run(handbrake_task.delay)
-            job_queue.put(job, block=False)
-        except ConnectionResetError:
-            print('Could not run job. Maybe broker credentials invalid?!')
+        job_queue.put(job, block=False)
+
+    logger.info('Done hashing...')
+    hashing_done_event.set()
 
     teardown_thread.join()
 

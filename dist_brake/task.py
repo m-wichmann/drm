@@ -11,6 +11,7 @@ logger = logging.getLogger('dist_hb')
 
 app = Celery('tasks', backend='rpc://')
 
+app.conf.update(CELERY_ACKS_LATE = True)
 app.conf.update(CELERYD_PREFETCH_MULTIPLIER = 1)
 
 server_ip = 'localhost'
