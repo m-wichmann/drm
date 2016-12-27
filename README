@@ -18,6 +18,41 @@ supported and tested. You should configure a user for dist_break in RabbitMQ.
 
   apt install rabbitmq-server
 
+The slave and the master need also to have the celery daemon installed:
+
+  sudo apt install celeryd 
+  sudo service celeryd start
+
+To rip DVD images, the following tools are used: dvdbackup, genisoimage.
+
+
+## Deployment
+
+1) Create the in and the out directory on the master. Copy the ISO files into
+   the in directory.
+
+2) Set all settings in the master.cfg (encoding settings and directories).
+
+3) Rabbitmy configuration
+  - Check if host configuration is ok: Host name set and entry for 127.0.0.1
+    in hosts file.
+  - Set up user and vhost in RabbitMQ:
+
+        sudo rabbitmqctl add_user myuser mypassword
+        sudo rabbitmqctl add_vhost myvhost
+        sudo rabbitmqctl set_permissions -p myvhost myuser ".*" ".*" ".*"
+
+4) Set all settings on each of the slaves (ip address of the master and the
+   user/password for rabbitmq e.g. "myuser"/"mypassword")
+
+5) Start master with the command:
+
+        ./dist-brake.py --master master.cfg
+
+6) Start each slave with the command:
+
+        ./dist-brake.py --slave slave.cfg
+
 
 ## Links
 
