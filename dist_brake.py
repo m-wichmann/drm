@@ -118,7 +118,8 @@ def parse_cfg_master(cfg_path):
             hb_config = HandbrakeConfig(quality      = data['hb_config']['quality'],
                                         h264_preset  = data['hb_config']['h264_preset'],
                                         h264_profile = data['hb_config']['h264_profile'],
-                                        h264_level   = data['hb_config']['h264_level'])
+                                        h264_level   = data['hb_config']['h264_level'],
+                                        chapter_split = data['hb_config']['split_every_chapters'])
             rip_config = RipConfig(a_lang = data['rip_config']['a_tracks'],
                                    s_lang = data['rip_config']['s_tracks'],
                                    len_range = (data['rip_config']['min_dur'],
@@ -127,7 +128,7 @@ def parse_cfg_master(cfg_path):
             in_path = data['in_path']
             out_path = data['out_path']
         except KeyError:
-            sys.exit('master config not valid')
+            sys.exit('Master config not valid.')
 
     return (hb_config, rip_config, in_path, out_path)
 
@@ -140,10 +141,9 @@ def parse_cfg_slave(cfg_path):
             user = data['user']
             password = data['password']
         except KeyError:
-            sys.exit('slave config not valid')
+            sys.exit('Slave config not valid.')
 
     return (ip, user, password)
-
 
 
 
@@ -185,28 +185,49 @@ def rip(out_dir):
 
 
 
-def list_titles(target_dir):
+def list_titles(target_dir, rip_config):
     for root, dirs, files in os.walk(target_dir):
         for f in files:
             print(os.path.join(root, f), end='')
-            l = Handbrake.scan_disc(os.path.join(root, f))
-            l = Handbrake.filter_titles(l, 15, 250, ['deu', 'eng', 'spa', 'jpa'], ['deu', 'eng', 'spa', 'jpa'])
-
-            print(" =>", len(l))
-
-            if (len(l) == 0):
+            track_list= Handbrake.scan_disc(os.path.join(root, f))
+            track_list = Handbrake.filter_titles(track_list, *rip_config.len_range, rip_config.a_lang, rip_config.s_lang)
+            if len(track_list) == 0:
                 print("  ==> Error")
+                continue
+            print(" => {} matching tracks...".format(len(track_list)))
+            for track in track_list:
+                print(track)
+
+
 
 
 def dist_brake():
     parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--master', dest='master',  action='store', default=None)
-    parser.add_argument('--slave',  dest='slave',   action='store', default=None)
-    parser.add_argument('--rip',    dest='rip',     action='store_true', default=None)
-    parser.add_argument('--list',   dest='list',    action='store_true', default=None)
-    parser.add_argument('--dir',    dest='dir',     action='store', default=None)
+    parser.add_argument('--master', dest='master',  action='store', default=None,
+                        help='start dist_brake as master to distribute image files to the slaves')
+    parser.add_argument('--slave',  dest='slave',   action='store', default=None,
+                        help='start dist_brake as slave to process image files provided by the master')
+    parser.add_argument('--rip',    dest='rip',     action='store_true', default=None,
+                        help='rip DVD discs to image files')
+    parser.add_argument('--list',   dest='list',    action='store', default=None,
+                        help='list tracks for all images in given directory that match given configuration')
+    parser.add_argument('--dir',    dest='dir',     action='store', default=None,
+                        help='provide a directory to scan images from')
     args = parser.parse_args()
 
+    # check cli arguments
+    if not any((args.master, args.slave, args.rip, args.list)):
+        sys.exit('Please select either master, slave, rip or list!')
+
+    # read config files
+    if args.master:
+        (hb_config, rip_config, in_path, out_path) = parse_cfg_master(args.master)
+    elif args.list:
+        (hb_config, rip_config, in_path, out_path) = parse_cfg_master(args.list)
+    elif args.slave is not None:
+        (ip, user, password) = parse_cfg_slave(args.slave)
+
+    # do something
     if args.rip:
         if args.dir is None:
             sys.exit('please provide --dir')
@@ -216,20 +237,13 @@ def dist_brake():
     if args.list:
         if args.dir is None:
             sys.exit('please provide --dir')
-        list_titles(args.dir)
+        list_titles(args.dir, rip_config)
         sys.exit(0)
-
-    if bool(args.master) == bool(args.slave):
-        sys.exit('please select either master, slave, rip or list!')
-
-    if args.master is not None:
-        (hb_config, rip_config, in_path, out_path) = parse_cfg_master(args.master)
-    elif args.slave is not None:
-        (ip, user, password) = parse_cfg_slave(args.slave)
 
     if args.slave:
         print('Starting as slave...')
         start_worker(ip, user, password)
+
     elif args.master:
         print('Starting as master...')
         master(hb_config, rip_config, in_path, out_path)

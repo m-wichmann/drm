@@ -1,4 +1,16 @@
 
+class Chapter(object):
+    def __init__(self, no, length):
+        """
+        Initializes a new Chapter object and specifies its number inside the title and its length in seconds.
+        
+        :param no: number of chapter in title
+        :param length: length of chapter in seconds
+        """
+        self.no = no
+        self.length = length
+
+
 class Track(object):
     def __init__(self, index, lang):
         self.index = index
@@ -15,12 +27,14 @@ class Track(object):
     def __repr__(self):
         return self.__str__()
 
+
 class Title(object):
     def __init__(self, index):
         self.index    = index
         self.duration = ""
         self.a_tracks = []
         self.s_tracks = []
+        self.chapters = []
 
     def __eq__(self, other):
         if other is None:
@@ -28,8 +42,10 @@ class Title(object):
         return ((self.duration == other.duration) and (self.a_tracks == other.a_tracks) and (self.s_tracks == other.s_tracks))
 
     def __str__(self):
-        ret = "Title: {num} - {duration} - A: {a_tracks} S: {s_tracks}"
-        return ret.format(num=self.index, duration=self.duration, a_tracks=self.a_tracks, s_tracks=self.s_tracks)
+        ret = "Title: {num} - {duration} - A: {a_tracks} S: {s_tracks} - {chapter} chapters"
+        return ret.format(num=self.index, duration=self.duration, a_tracks=self.a_tracks,
+                          s_tracks=self.s_tracks, chapter=len(self.chapters))
+
 
 class Disc(object):
     def __init__(self, local_path, remote_path):
@@ -45,8 +61,10 @@ class Disc(object):
     def __repr__(self):
         return self.__str__()
 
+
 class HandbrakeConfig(object):
-    def __init__(self, preset=None, quality=20, h264_preset='medium', h264_profile='high', h264_level='4.1'):
+    def __init__(self, preset=None, quality=20, h264_preset='medium', h264_profile='high',
+                 h264_level='4.1', chapter_split=0):
         if h264_preset not in ['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow', 'placebo']:
             raise Exception('Preset invalid')
         if h264_profile not in ['baseline', 'main', 'high', 'high10', 'high422', 'high444']:
@@ -58,6 +76,8 @@ class HandbrakeConfig(object):
         self.h264_preset = h264_preset
         self.h264_profile = h264_profile
         self.h264_level = h264_level
+        self.chapter_split = chapter_split
+
 
 class RipConfig(object):
     """
