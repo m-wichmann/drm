@@ -1,8 +1,11 @@
-import subprocess
+
+import os
+import time
 import codecs
 import datetime
-import os
-from dist_brake.data import Title, Track
+import subprocess
+
+from dist_brake.data import Title, Track, Chapter
 
 
 import logging
@@ -36,18 +39,23 @@ class Handbrake(object):
 
         in_s_tracks = False
         in_a_tracks = False
+        in_chapters = False
         title_temp = None
         title_list = []
         for line in temp:
-            if (in_a_tracks or in_s_tracks) and (line[:4] == '  + '):
+            if (in_a_tracks or in_s_tracks or in_chapters) and (line[:4] == '  + '):
                 in_s_tracks = False
                 in_a_tracks = False
+                in_chapters = False
 
             if '  + audio tracks:' in line:
                 in_a_tracks = True
                 continue
             elif '  + subtitle tracks:' in line:
                 in_s_tracks = True
+                continue
+            elif '  + chapters:' in line:
+                in_chapters = True
                 continue
             elif "  + duration:" in line:
                 temp = line[14:].split(':')
@@ -79,6 +87,16 @@ class Handbrake(object):
                     temp2 = line.find(', ', temp1)
                     idx = line[temp1:temp2]
                     title_temp.s_tracks.append(Track(int(idx), str(lang)))
+            elif in_chapters:
+                # parse chapter number
+                marker = line.find(':')
+                if marker != -1:
+                    no = int(line[6:marker])
+                    # parse length and calculate seconds
+                    marker = line.find('duration') + len('duration') + 1
+                    t = time.strptime(line[marker:], "%H:%M:%S")
+                    length = t.tm_hour*3600 + t.tm_min*60 + t.tm_sec
+                    title_temp.chapters.append(Chapter(no, length))
         return title_list
 
     @staticmethod

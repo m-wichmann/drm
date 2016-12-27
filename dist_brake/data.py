@@ -1,4 +1,15 @@
 
+class Chapter(object):
+    def __init__(self, no, length):
+        """
+        Initializes a new Chapter object and specifies its number inside the title and its length in seconds.
+        
+        :param no: number of chapter in title
+        :param length: length of chapter in seconds
+        """
+        self.no = no
+        self.length = length
+
 class Track(object):
     def __init__(self, index, lang):
         self.index = index
@@ -21,6 +32,7 @@ class Title(object):
         self.duration = ""
         self.a_tracks = []
         self.s_tracks = []
+        self.chapters = []
 
     def __eq__(self, other):
         if other is None:
