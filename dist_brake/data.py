@@ -40,8 +40,9 @@ class Title(object):
         return ((self.duration == other.duration) and (self.a_tracks == other.a_tracks) and (self.s_tracks == other.s_tracks))
 
     def __str__(self):
-        ret = "Title: {num} - {duration} - A: {a_tracks} S: {s_tracks}"
-        return ret.format(num=self.index, duration=self.duration, a_tracks=self.a_tracks, s_tracks=self.s_tracks)
+        ret = "Title: {num} - {duration} - A: {a_tracks} S: {s_tracks} - {chapter} chapters"
+        return ret.format(num=self.index, duration=self.duration, a_tracks=self.a_tracks,
+                          s_tracks=self.s_tracks, chapter=len(self.chapters))
 
 class Disc(object):
     def __init__(self, local_path, remote_path):
