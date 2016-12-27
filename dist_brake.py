@@ -200,11 +200,16 @@ def list_titles(target_dir):
 
 def dist_brake():
     parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--master', dest='master',  action='store', default=None)
-    parser.add_argument('--slave',  dest='slave',   action='store', default=None)
-    parser.add_argument('--rip',    dest='rip',     action='store_true', default=None)
-    parser.add_argument('--list',   dest='list',    action='store_true', default=None)
-    parser.add_argument('--dir',    dest='dir',     action='store', default=None)
+    parser.add_argument('--master', dest='master',  action='store', default=None,
+                        help='start dist_brake as master to distribute image files to the slaves')
+    parser.add_argument('--slave',  dest='slave',   action='store', default=None,
+                        help='start dist_brake as slave to process image files provided by the master')
+    parser.add_argument('--rip',    dest='rip',     action='store_true', default=None,
+                        help='rip DVD discs to image files')
+    parser.add_argument('--list',   dest='list',    action='store_true', default=None,
+                        help='list tracks for all images in given directory')
+    parser.add_argument('--dir',    dest='dir',     action='store', default=None,
+                        help='provide a directory to scan images from')
     args = parser.parse_args()
 
     if args.rip:
