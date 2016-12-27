@@ -124,8 +124,8 @@ class Handbrake(object):
         return ret
 
     @classmethod
-    def build_cmd_line(cls, input, output, title, a_tracks, s_tracks, preset=None,
-                       quality=20, h264_preset='medium', h264_profile='high', h264_level='4.1'):
+    def build_cmd_line(cls, input, output, title, a_tracks, s_tracks, preset=None, quality=20,
+                       h264_preset='medium', h264_profile='high', h264_level='4.1', chapters=None):
         if h264_preset not in ['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow', 'placebo']:
             raise Exception('Preset invalid')
         if h264_profile not in ['baseline', 'main', 'high', 'high10', 'high422', 'high444']:
@@ -139,6 +139,9 @@ class Handbrake(object):
         cmd.extend(['-t', str(title)])
         cmd.extend(['-a', Handbrake._tracks_to_csl(a_tracks)])
         cmd.extend(['-s', Handbrake._tracks_to_csl(s_tracks)])
+        if chapters:
+            # add parameter for chapter range defined by a given tuple
+            cmd.extend(['-c', '{}-{}'.format(*chapters)])
         if preset is not None:
             cmd.extend(['-Z', preset])
         cmd.extend(['-f', 'mkv'])
@@ -164,17 +167,24 @@ class Handbrake(object):
         ret = []
         for t in title_list:
             logging.info('encoding title {}'.format(t.index))
-            title_path = os.path.basename(in_path) + '.' + str(t.index) + '.mkv'
-            title_out_path = os.path.join(out_path, title_path)
-            cmd = Handbrake.build_cmd_line(in_path, title_out_path, t.index, t.a_tracks, t.s_tracks,
-                                           quality=hb_config.quality, h264_preset=hb_config.h264_preset,
-                                           h264_profile=hb_config.h264_profile, h264_level=hb_config.h264_level)
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = proc.communicate()
-            stdout = codecs.decode(stdout, 'utf-8', 'replace')
-            stderr = codecs.decode(stderr, 'utf-8', 'replace')
-
-            ret.append(title_path)
+            # check in how much parts the title has to be endoded
+            no_chapters = len(t.chapters)
+            no_split = hb_config.chapter_split if hb_config.chapter_split else no_chapters
+            for i in range(1, no_chapters+1, no_split):
+                logging.info('encoding title {} chapters {}-{}'.format(t.index, i, i+no_split-1))
+                # create output file name
+                title_path = os.path.basename(in_path) + '.' + str(t.index) + '.' + str(i) + '.mkv'
+                title_out_path = os.path.join(out_path, title_path)
+                # build command and execute
+                cmd = Handbrake.build_cmd_line(in_path, title_out_path, t.index, t.a_tracks, t.s_tracks,
+                                               quality=hb_config.quality, h264_preset=hb_config.h264_preset,
+                                               h264_profile=hb_config.h264_profile, h264_level=hb_config.h264_level,
+                                               chapters=(i, i+no_split-1))
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdout, stderr = proc.communicate()
+                stdout = codecs.decode(stdout, 'utf-8', 'replace')
+                stderr = codecs.decode(stderr, 'utf-8', 'replace')
+                ret.append(title_path)
         return ret
 
     @staticmethod

@@ -118,7 +118,8 @@ def parse_cfg_master(cfg_path):
             hb_config = HandbrakeConfig(quality      = data['hb_config']['quality'],
                                         h264_preset  = data['hb_config']['h264_preset'],
                                         h264_profile = data['hb_config']['h264_profile'],
-                                        h264_level   = data['hb_config']['h264_level'])
+                                        h264_level   = data['hb_config']['h264_level'],
+                                        chapter_split = data['hb_config']['split_every_chapters'])
             rip_config = RipConfig(a_lang = data['rip_config']['a_tracks'],
                                    s_lang = data['rip_config']['s_tracks'],
                                    len_range = (data['rip_config']['min_dur'],
@@ -127,7 +128,7 @@ def parse_cfg_master(cfg_path):
             in_path = data['in_path']
             out_path = data['out_path']
         except KeyError:
-            sys.exit('master config not valid')
+            sys.exit('Master config not valid.')
 
     return (hb_config, rip_config, in_path, out_path)
 
@@ -140,10 +141,9 @@ def parse_cfg_slave(cfg_path):
             user = data['user']
             password = data['password']
         except KeyError:
-            sys.exit('slave config not valid')
+            sys.exit('Slave config not valid.')
 
     return (ip, user, password)
-
 
 
 
@@ -197,6 +197,7 @@ def list_titles(target_dir, rip_config):
             print(" => {} matching tracks...".format(len(track_list)))
             for track in track_list:
                 print(track)
+
 
 
 
