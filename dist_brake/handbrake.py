@@ -164,35 +164,78 @@ class Handbrake(object):
 
 
     @staticmethod
-    def encode_titles(hb_config, rip_config, title_list, in_path, out_path):
-        logging.info('encoding titles...')
+    def encode_title(hb_config, rip_config, in_path, out_path, title, chapters=None):
+        title_path = ""
+        if chapters is None:
+            logging.info('encoding title {}'.format(title.index))
+            title_path = os.path.basename(in_path) + '.' + str(title.index) + '.mkv'
+        else:
+            logging.info('encoding title {} chapters {}-{}'.format(title.index, chapters[0], chapters[1]))
+            title_path = os.path.basename(in_path) + '.' + str(title.index) + '.' + str(chapters[0]) + '.mkv'
+
+        title_out_path = os.path.join(out_path, title_path)
 
         reencode_audio = False
         if "reencode_audio" in rip_config.fixes:
             reencode_audio = True
 
+        cmd = Handbrake.build_cmd_line(in_path, title_out_path, title.index, title.a_tracks, title.s_tracks,
+                                       quality=hb_config.quality, h264_preset=hb_config.h264_preset,
+                                       h264_profile=hb_config.h264_profile, h264_level=hb_config.h264_level,
+                                       chapters=chapters, reencode_audio=reencode_audio)
+
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate()
+        stdout = codecs.decode(stdout, 'utf-8', 'replace')
+        stderr = codecs.decode(stderr, 'utf-8', 'replace')
+
+        return title_path
+
+
+    @staticmethod
+    def encode_titles(hb_config, rip_config, titles, in_path, out_path):
+        logging.info('encoding titles...')
+
         ret = []
-        for t in title_list:
-            logging.info('encoding title {}'.format(t.index))
-            # check in how much parts the title has to be endoded
-            no_chapters = len(t.chapters)
-            no_split = hb_config.chapter_split if hb_config.chapter_split else no_chapters
-            for i in range(1, no_chapters+1, no_split):
-                logging.info('encoding title {} chapters {}-{}'.format(t.index, i, i+no_split-1))
-                # create output file name
-                title_path = os.path.basename(in_path) + '.' + str(t.index) + '.' + str(i) + '.mkv'
-                title_out_path = os.path.join(out_path, title_path)
-                # build command and execute
-                cmd = Handbrake.build_cmd_line(in_path, title_out_path, t.index, t.a_tracks, t.s_tracks,
-                                               quality=hb_config.quality, h264_preset=hb_config.h264_preset,
-                                               h264_profile=hb_config.h264_profile, h264_level=hb_config.h264_level,
-                                               chapters=(i, i+no_split-1), reencode_audio=reencode_audio)
-                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                stdout, stderr = proc.communicate()
-                stdout = codecs.decode(stdout, 'utf-8', 'replace')
-                stderr = codecs.decode(stderr, 'utf-8', 'replace')
-                ret.append(title_path)
+
+        # Special case fix "split_every_chapters"
+        if "split_every_chapters" in rip_config.fixes:
+            if isinstance(rip_config.fixes["split_every_chapters"], int):
+                # TODO: Fix last chapter set, if length is not divisible by split_step (works currently, but isn't very nice)
+                for title in titles:
+                    no_chapters = len(title.chapters)
+                    split_step = rip_config.fixes["split_every_chapters"]
+                    for i in range(1, no_chapters+1, split_step):
+                        title_path = Handbrake.encode_title(hb_config, rip_config, in_path, out_path, title, chapters=(i, i+split_step-1))
+                        ret.append(title_path)
+
+            elif isinstance(rip_config.fixes["split_every_chapters"], list):
+                chunks = [1]
+                for chunk in rip_config.fixes["split_every_chapters"]:
+                    chunks.append(chunks[-1] + chunk)
+
+                chunk_tuples = []
+                for i in range(0, len(chunks) - 1):
+                    chunk_tuples.append((chunks[i], chunks[i+1] - 1))
+
+                for title in titles:
+                    for chunk in chunk_tuples:
+                        title_path = Handbrake.encode_title(hb_config, rip_config, in_path, out_path, title, chapters=chunk)
+                        ret.append(title_path)
+
+            else:
+                sys.exit('split_every_chapters parameter must be int or list of ints')
+
+            # Early return, because fix is done
+            return ret
+
+        # Normal case
+        for title in titles:
+            title_path = Handbrake.encode_title(hb_config, rip_config, in_path, out_path, title)
+            ret.append(title_path)
+
         return ret
+
 
     @staticmethod
     def encode_sample(hb_config, in_path, out_path):
@@ -211,7 +254,8 @@ class Handbrake(object):
     def remove_duplicate_tracks(titles):
         """Workaroud for stupid DVDs, that have identical copies of the same
         tracks. Might throw away some false positives, since only title
-        duration and tracks are compared."""
+        duration and tracks are compared. This only detects duplicate titles
+        directly one after another."""
         ret = []
         l = None
         for t in titles:

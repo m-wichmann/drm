@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 
-from celery import Celery
-from celery.result import AsyncResult
-from celery.task.control import discard_all
-from celery.bin.base import Command
 import argparse
 import os
 import sys
@@ -12,10 +8,6 @@ import signal
 from threading import Thread
 import locale
 import codecs
-from pyftpdlib.authorizers import DummyAuthorizer
-from pyftpdlib.handlers import FTPHandler
-from pyftpdlib.servers import FTPServer, ThreadedFTPServer
-from ftplib import FTP
 import tempfile
 import time
 import uuid
@@ -25,6 +17,15 @@ import datetime
 import json
 import threading
 import queue
+
+from celery import Celery
+from celery.result import AsyncResult
+from celery.task.control import discard_all
+from celery.bin.base import Command
+from pyftpdlib.authorizers import DummyAuthorizer
+from pyftpdlib.handlers import FTPHandler
+from pyftpdlib.servers import FTPServer, ThreadedFTPServer
+from ftplib import FTP
 
 from dist_brake.data import HandbrakeConfig, RipConfig, Disc
 from dist_brake.job import Job
@@ -39,8 +40,6 @@ logger = logging.getLogger('dist_hb')
 
 # TODO: support subdirs
 # TODO: detect new files during runtime
-# TODO: maybe move directories to cfg file
-
 
 
 def master_teardown_thread(job_queue, hashing_done_event):
@@ -116,16 +115,18 @@ def parse_cfg_master(cfg_path):
     with open(cfg_path, 'r') as fd:
         try:
             data = json.load(fd)
-            hb_config = HandbrakeConfig(quality      = data['hb_config']['quality'],
-                                        h264_preset  = data['hb_config']['h264_preset'],
-                                        h264_profile = data['hb_config']['h264_profile'],
-                                        h264_level   = data['hb_config']['h264_level'],
-                                        chapter_split = data['hb_config']['split_every_chapters'])
-            rip_config = RipConfig(a_lang = data['rip_config']['a_tracks'],
-                                   s_lang = data['rip_config']['s_tracks'],
+
+            hb_config = HandbrakeConfig(quality       = data['hb_config']['quality'],
+                                        h264_preset   = data['hb_config']['h264_preset'],
+                                        h264_profile  = data['hb_config']['h264_profile'],
+                                        h264_level    = data['hb_config']['h264_level'],
+                                        fixes         = data['fixes'])
+            rip_config = RipConfig(a_lang    = data['rip_config']['a_tracks'],
+                                   s_lang    = data['rip_config']['s_tracks'],
                                    len_range = (data['rip_config']['min_dur'],
                                                 data['rip_config']['max_dur']),
-                                   fixes = data['rip_config']['fixes'])
+                                   fixes     = data['fixes'])
+
             in_path = data['in_path']
             out_path = data['out_path']
         except KeyError:
