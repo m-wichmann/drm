@@ -61,7 +61,9 @@ class HandbrakeConfig(object):
 
 class RipConfig(object):
     """
-        Possible fixes: remove_duplicate_tracks
+        Possible fixes:
+            remove_duplicate_tracks     ==> Tries to remove duplicate tracks, if there are the same length and directly after one another.
+            reencode_audio              ==> Reencode audio to mp3. Otherwise audio will be copied.
     """
     def __init__(self, a_lang=['eng', 'deu'], s_lang=['eng', 'deu'], len_range=(15, 50), fixes=[]):
         self.a_lang = a_lang

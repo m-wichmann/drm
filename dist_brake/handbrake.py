@@ -107,7 +107,7 @@ class Handbrake(object):
 
     @classmethod
     def build_cmd_line(cls, input, output, title, a_tracks, s_tracks, preset=None,
-                       quality=20, h264_preset='medium', h264_profile='high', h264_level='4.1'):
+                       quality=20, h264_preset='medium', h264_profile='high', h264_level='4.1', reencode_audio=False):
         if h264_preset not in ['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow', 'placebo']:
             raise Exception('Preset invalid')
         if h264_profile not in ['baseline', 'main', 'high', 'high10', 'high422', 'high444']:
@@ -127,7 +127,10 @@ class Handbrake(object):
         cmd.extend(['-m'])
         cmd.extend(['-e', 'x264'])
         cmd.extend(['-q', str(quality)])
-        cmd.extend(['-E', 'copy'])
+        if reencode_audio:
+            cmd.extend(['-E', 'mp3'])
+        else:
+            cmd.extend(['-E', 'copy'])
         cmd.extend(['--audio-fallback', 'ffac3'])
         cmd.extend(['--loose-anamorphic'])
         cmd.extend(['--modulus', '2'])
@@ -140,8 +143,15 @@ class Handbrake(object):
 
 
     @staticmethod
-    def encode_titles(hb_config, title_list, in_path, out_path):
+    def encode_titles(hb_config, rip_config, title_list, in_path, out_path):
         logging.info('encoding titles...')
+
+        reencode_audio = False
+        if "reencode_audio" in rip_config.fixes:
+            print("reencode audio active")
+            reencode_audio = True
+        else:
+            print("reencode audio not active")
 
         ret = []
         for t in title_list:
@@ -150,7 +160,8 @@ class Handbrake(object):
             title_out_path = os.path.join(out_path, title_path)
             cmd = Handbrake.build_cmd_line(in_path, title_out_path, t.index, t.a_tracks, t.s_tracks,
                                            quality=hb_config.quality, h264_preset=hb_config.h264_preset,
-                                           h264_profile=hb_config.h264_profile, h264_level=hb_config.h264_level)
+                                           h264_profile=hb_config.h264_profile, h264_level=hb_config.h264_level,
+                                           reencode_audio=reencode_audio)
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout, stderr = proc.communicate()
             stdout = codecs.decode(stdout, 'utf-8', 'replace')

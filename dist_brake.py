@@ -3,6 +3,7 @@
 from celery import Celery
 from celery.result import AsyncResult
 from celery.task.control import discard_all
+from celery.bin.base import Command
 import argparse
 import os
 import sys
@@ -43,8 +44,6 @@ logger = logging.getLogger('dist_hb')
 
 
 def master_teardown_thread(job_queue, hashing_done_event):
-    # TODO: add some way to signal that all jobs have been added
-
     job_list = []
     while ((not hashing_done_event.is_set()) or (len(job_list) != 0) or (not job_queue.empty())):
         try:
@@ -73,6 +72,8 @@ def master_teardown_thread(job_queue, hashing_done_event):
         for job in remove_list:
             logger.info('Removing {}'.format(job))
             job_list.remove(job)
+
+        del remove_list
 
         time.sleep(5)
 
@@ -231,7 +232,7 @@ def dist_brake():
         print('Starting as slave...')
         start_worker(ip, user, password)
     elif args.master:
-        print('Starting as master...')
+        print('Starting as master... (Celery version {})'.format(Command.version))
         master(hb_config, rip_config, in_path, out_path)
 
 
