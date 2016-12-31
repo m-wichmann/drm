@@ -27,10 +27,10 @@ from pyftpdlib.handlers import FTPHandler
 from pyftpdlib.servers import FTPServer, ThreadedFTPServer
 from ftplib import FTP
 
-from dist_brake.data import HandbrakeConfig, RipConfig, Disc
-from dist_brake.job import Job
-from dist_brake.task import start_worker, handbrake_task
-from dist_brake.handbrake import Handbrake
+from drm.data import HandbrakeConfig, RipConfig, Disc
+from drm.job import Job
+from drm.task import start_worker, drm_task
+from drm.handbrake import Handbrake
 
 
 import logging
@@ -49,7 +49,7 @@ def master_teardown_thread(job_queue, hashing_done_event):
             while True:
                 job = job_queue.get(block=False)
                 try:
-                    job.run(handbrake_task.delay)
+                    job.run(drm_task.delay)
                     job_list.append(job)
                 except ConnectionResetError:
                     logger.error('Could not run job. Maybe broker credentials invalid?!')
@@ -75,8 +75,6 @@ def master_teardown_thread(job_queue, hashing_done_event):
         del remove_list
 
         time.sleep(5)
-
-    logger.info('Ending teardown thread')
 
 
 def master(hb_config, rip_config, in_path, out_path):
@@ -203,7 +201,7 @@ def list_titles(target_dir, rip_config):
 
 
 
-def dist_brake():
+def drm_main():
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--master', dest='master',  action='store', default=None,
                         help='start dist_brake as master to distribute image files to the slaves')
@@ -252,4 +250,4 @@ def dist_brake():
 
 
 if __name__ == '__main__':
-    dist_brake()
+    drm_main()

@@ -5,11 +5,11 @@ import codecs
 import datetime
 import subprocess
 
-from dist_brake.data import Title, Track, Chapter
+from drm.data import Title, Track, Chapter
 
 
 import logging
-logger = logging.getLogger('dist_hb')
+logger = logging.getLogger('drm')
 
 
 HANDBRAKE_CLI_BIN = 'HandBrakeCLI'

@@ -4,11 +4,11 @@ import uuid
 import tempfile
 import shutil
 from celery.result import AsyncResult
-from dist_brake.data import HandbrakeConfig, RipConfig, Disc
-from dist_brake.ftp import ftp_get_server
+from drm.data import HandbrakeConfig, RipConfig, Disc
+from drm.ftp import ftp_get_server
 
 import logging
-logger = logging.getLogger('dist_hb')
+logger = logging.getLogger('drm')
 
 
 temp_dir = tempfile.TemporaryDirectory()

@@ -6,7 +6,7 @@ from pyftpdlib.servers import FTPServer, ThreadedFTPServer
 
 
 import logging
-logger = logging.getLogger('dist_hb')
+logger = logging.getLogger('drm')
 
 
 FTP_SERVER_PORT = 50021

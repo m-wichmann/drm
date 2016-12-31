@@ -1,4 +1,4 @@
-# dist_break
+# drm - distributed russian mob
 
 Distributed video transcoder based on HandBrake and Celery.
 
@@ -14,13 +14,13 @@ You also have to install Handbrake or rather HandBrakeCLI on all slaves.
   apt install handbrake-cli
 
 The master needs to install a broker for celery. Currently only RabbitMQ is
-supported and tested. You should configure a user for dist_break in RabbitMQ.
+supported and tested. You should configure a user for drm in RabbitMQ.
 
   apt install rabbitmq-server
 
 The slave and the master need also to have the celery daemon installed:
 
-  sudo apt install celeryd 
+  sudo apt install celeryd
   sudo service celeryd start
 
 To rip DVD images, the following tools are used: dvdbackup, genisoimage.
@@ -33,7 +33,7 @@ To rip DVD images, the following tools are used: dvdbackup, genisoimage.
 
 2) Set all settings in the master.cfg (encoding settings and directories).
 
-3) Rabbitmy configuration
+3) RabbitMQ configuration
   - Check if host configuration is ok: Host name set and entry for 127.0.0.1
     in hosts file.
   - Set up user and vhost in RabbitMQ:
@@ -47,11 +47,11 @@ To rip DVD images, the following tools are used: dvdbackup, genisoimage.
 
 5) Start master with the command:
 
-        ./dist-brake.py --master master.cfg
+        ./drm.py --master master.cfg
 
 6) Start each slave with the command:
 
-        ./dist-brake.py --slave slave.cfg
+        ./drm.py --slave slave.cfg
 
 
 ## Links

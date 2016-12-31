@@ -1,12 +1,12 @@
 import tempfile
 import os
 from celery import Celery
-from dist_brake.ftp import FTPClient, FTP_SERVER_PORT
-from dist_brake.handbrake import Handbrake
+from drm.ftp import FTPClient, FTP_SERVER_PORT
+from drm.handbrake import Handbrake
 
 
 import logging
-logger = logging.getLogger('dist_hb')
+logger = logging.getLogger('drm')
 
 
 app = Celery('tasks', backend='rpc://')
@@ -38,7 +38,7 @@ def start_worker(ip, user, password):
 
 
 @app.task
-def handbrake_task(job):
+def drm_task(job):
     # TODO: check env
 
     temp_dir = tempfile.TemporaryDirectory()

@@ -10,6 +10,11 @@ class Chapter(object):
         self.no = no
         self.length = length
 
+    def __eq__(self, other):
+        if other is None:
+            return False
+        return ((self.no == other.no) and (self.length == other.length))
+
 
 class Track(object):
     def __init__(self, index, lang):
@@ -39,7 +44,7 @@ class Title(object):
     def __eq__(self, other):
         if other is None:
             return False
-        return ((self.duration == other.duration) and (self.a_tracks == other.a_tracks) and (self.s_tracks == other.s_tracks))
+        return ((self.duration == other.duration) and (self.a_tracks == other.a_tracks) and (self.s_tracks == other.s_tracks) and (self.chapters == other.chapters))
 
     def __str__(self):
         ret = "Title: {num} - {duration} - A: {a_tracks} S: {s_tracks} - {chapter} chapters"
