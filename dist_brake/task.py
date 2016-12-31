@@ -60,7 +60,7 @@ def handbrake_task(job):
                 job.rip_config.a_lang, job.rip_config.s_lang)
     if "remove_duplicate_tracks" in job.rip_config.fixes:
         titles = hb.remove_duplicate_tracks(titles)
-    out_list = hb.encode_titles(job.hb_config, titles, in_path, temp_dir.name)
+    out_list = hb.encode_titles(job.hb_config, job.rip_config, titles, in_path, temp_dir.name)
     for f in out_list:
         files.append({'name': f, 'hash': job._calc_hash(os.path.join(temp_dir.name, f))})
 
