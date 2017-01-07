@@ -1,11 +1,10 @@
-
 import os
+import sys
 import time
-import codecs
 import datetime
-import subprocess
 
 from drm.data import Title, Track, Chapter
+from drm.util import popen_wrapper
 
 
 import logging
@@ -17,15 +16,26 @@ HANDBRAKE_CLI_BIN = 'HandBrakeCLI'
 
 class Handbrake(object):
     @staticmethod
-    def scan_disc(disc_path):
+    def check_env():
+        try:
+            (retval, stdout, stderr) = popen_wrapper([HANDBRAKE_CLI_BIN, '--version'])
+            return retval == 0
+        except FileNotFoundError:
+            return False
+
+    @staticmethod
+    def scan_disc(disc_path, use_libdvdread=False):
         # TODO: detect if disc_path does not exist
         # TODO: accept disc as argument
 
         logger.info('Scanning %s...' % (disc_path))
         cmd = [HANDBRAKE_CLI_BIN, '-i', disc_path, '-t', '0']
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = proc.communicate()
-        stderr = codecs.decode(stderr, 'utf-8', 'replace')
+
+        if use_libdvdread:
+            cmd.extend(['--no-dvdnav'])
+
+        (retval, stdout, stderr) = popen_wrapper(cmd)
+
         titles = Handbrake._parse_scan(stderr)
         return titles
 
@@ -124,8 +134,8 @@ class Handbrake(object):
         return ret
 
     @classmethod
-    def build_cmd_line(cls, input, output, title, a_tracks, s_tracks, preset=None, quality=20,
-                       h264_preset='medium', h264_profile='high', h264_level='4.1', chapters=None, reencode_audio=False):
+    def build_cmd_line(cls, input_file, output, title, a_tracks, s_tracks, preset=None, quality=20,
+                       h264_preset='medium', h264_profile='high', h264_level='4.1', chapters=None, reencode_audio=False, use_libdvdread=False):
         if h264_preset not in ['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow', 'placebo']:
             raise Exception('Preset invalid')
         if h264_profile not in ['baseline', 'main', 'high', 'high10', 'high422', 'high444']:
@@ -134,7 +144,7 @@ class Handbrake(object):
             raise Exception('Level invalid')
 
         cmd = ['HandBrakeCLI']
-        cmd.extend(['-i', input])
+        cmd.extend(['-i', input_file])
         cmd.extend(['-o', output])
         cmd.extend(['-t', str(title)])
         cmd.extend(['-a', Handbrake._tracks_to_csl(a_tracks)])
@@ -160,6 +170,9 @@ class Handbrake(object):
         cmd.extend(['--x264-profile', h264_profile])
         cmd.extend(['--h264-level', h264_level])
 
+        if use_libdvdread:
+            cmd.extend(['--no-dvdnav'])
+
         return cmd
 
 
@@ -179,15 +192,16 @@ class Handbrake(object):
         if "reencode_audio" in rip_config.fixes:
             reencode_audio = True
 
+        use_libdvdread = False
+        if "use_libdvdread" in rip_config.fixes:
+            use_libdvdread = True
+
         cmd = Handbrake.build_cmd_line(in_path, title_out_path, title.index, title.a_tracks, title.s_tracks,
                                        quality=hb_config.quality, h264_preset=hb_config.h264_preset,
                                        h264_profile=hb_config.h264_profile, h264_level=hb_config.h264_level,
-                                       chapters=chapters, reencode_audio=reencode_audio)
+                                       chapters=chapters, reencode_audio=reencode_audio, use_libdvdread=use_libdvdread)
 
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = proc.communicate()
-        stdout = codecs.decode(stdout, 'utf-8', 'replace')
-        stderr = codecs.decode(stderr, 'utf-8', 'replace')
+        (retval, stdout, stderr) = popen_wrapper(cmd)
 
         return title_path
 
@@ -235,11 +249,6 @@ class Handbrake(object):
             ret.append(title_path)
 
         return ret
-
-
-    @staticmethod
-    def encode_sample(hb_config, in_path, out_path):
-        logging.info('encoding sample...')
 
     @classmethod
     def _tracks_to_csl(cls, track_list):

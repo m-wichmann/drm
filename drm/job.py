@@ -16,9 +16,9 @@ temp_dir = tempfile.TemporaryDirectory()
 
 class Job(object):
     NOT_STARTED = 0
-    RUNNING     = 1
-    DONE        = 2
-    FAILED      = 3
+    RUNNING = 1
+    DONE = 2
+    FAILED = 3
 
     def __init__(self, disc, rip_config, hb_config, in_path, out_path):
         if not isinstance(disc, Disc):
@@ -46,11 +46,11 @@ class Job(object):
         return self.name + " - " + self.disc.local_path
 
     def _calc_hash(self, filepath):
-        hash = hashlib.md5()
+        hash_val = hashlib.md5()
         with open(filepath, 'rb') as fd:
             for chunk in iter(lambda: fd.read(4096), b""):
-                hash.update(chunk)
-        return hash.hexdigest()
+                hash_val.update(chunk)
+        return hash_val.hexdigest()
 
     def check_hash(self, filepath):
         return self.hash == self._calc_hash(filepath)

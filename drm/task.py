@@ -11,21 +11,21 @@ logger = logging.getLogger('drm')
 
 app = Celery('tasks', backend='rpc://')
 
-app.conf.update(CELERY_ACKS_LATE = True)
-app.conf.update(CELERYD_PREFETCH_MULTIPLIER = 1)
+app.conf.update(CELERY_ACKS_LATE=True)
+app.conf.update(CELERYD_PREFETCH_MULTIPLIER=1)
 
 server_ip = 'localhost'
 
 
 def set_broker_url(user=None, password=None, ip=None, port=None):
-    broker_url  = 'amqp://'
+    broker_url = 'amqp://'
     broker_url += str(user) if user is not None else ''
     broker_url += (':' + str(password)) if password is not None else ''
     broker_url += '@' if user is not None else ''
     broker_url += str(ip) if ip is not None else ''
     broker_url += (':' + str(port)) if port is not None else ''
 
-    app.conf.update(BROKER_URL = broker_url)
+    app.conf.update(BROKER_URL=broker_url)
 
 
 def start_worker(ip, user, password):
@@ -54,10 +54,10 @@ def drm_task(job):
 
     files = []
     hb = Handbrake()
-    titles = hb.scan_disc(in_path)
+    titles = hb.scan_disc(in_path, "use_libdvdread" in job.rip_config.fixes)
     titles = hb.filter_titles(titles,
-                job.rip_config.len_range[0], job.rip_config.len_range[1],
-                job.rip_config.a_lang, job.rip_config.s_lang)
+                              job.rip_config.len_range[0], job.rip_config.len_range[1],
+                              job.rip_config.a_lang, job.rip_config.s_lang)
 
     if "remove_duplicate_tracks" in job.rip_config.fixes:
         titles = hb.remove_duplicate_tracks(titles)

@@ -2,7 +2,7 @@ from threading import Thread
 from ftplib import FTP
 from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler
-from pyftpdlib.servers import FTPServer, ThreadedFTPServer
+from pyftpdlib.servers import ThreadedFTPServer
 
 
 import logging
@@ -18,7 +18,6 @@ ftp_server = None
 class FTPServerWrapper(object):
     class TestHandler(FTPHandler):
         def on_incomplete_file_received(self, file):
-            pass
             print('on_incomplete_file_received({})'.format(file))
             # TODO: delete incomplete file, mark job as unfinished
 
@@ -88,6 +87,5 @@ class FTPClient(object):
 
     def put_file(self, source, dest):
         logging.info('copying {} to {}'.format(source, dest))
-        print(source, dest)
         with open(source, 'rb') as fd:
             self.ftp.storbinary('STOR {ftp_file}'.format(ftp_file=dest), fd)
