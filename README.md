@@ -70,6 +70,6 @@ e.g. "myuser"/"mypassword")
 
 ## Links
 
-* [Handbrake](handbrake.fr)
-* [Celery](celeryproject.org)
-* [RabbitMW](rabbitmq.com)
+* [Handbrake](http://handbrake.fr)
+* [Celery](http://celeryproject.org)
+* [RabbitMQ](http://rabbitmq.com)
