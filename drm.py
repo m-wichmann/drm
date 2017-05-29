@@ -12,17 +12,15 @@ import threading
 import queue
 import textwrap
 
-from celery.task.control import discard_all
-from celery.bin.base import Command
-
 from drm.data import HandbrakeConfig, RipConfig, Disc
 from drm.job import Job
-from drm.task import start_worker, drm_task
 from drm.handbrake import Handbrake
 from drm.util import *
+from drm.master import master_start_server
+from drm.slave import slave_start
 
 
-DRM_VERSION = "1.0.0"
+DRM_VERSION = "2.0.0"
 
 
 import logging
@@ -95,8 +93,7 @@ def parse_cfg_slave(cfg_path):
         with open(cfg_path, 'r') as fd:
             data = json.load(fd)
             ip = data['ip']
-            user = data['user']
-            password = data['password']
+            port = data['port']
     except (KeyError, json.decoder.JSONDecodeError):
         raise InvalidConfigException('Config is invalid')
     except FileNotFoundError:
@@ -104,75 +101,24 @@ def parse_cfg_slave(cfg_path):
     except IsADirectoryError:
         raise PathIsDirException('Config file expected, directory found')
 
-    return (ip, user, password)
-
-
-def master_teardown_thread(job_queue, hashing_done_event):
-    job_list = []
-    while (not hashing_done_event.is_set()) or (len(job_list) != 0) or (not job_queue.empty()):
-        try:
-            while True:
-                job = job_queue.get(block=False)
-                try:
-                    job.run(drm_task.delay)
-                    job_list.append(job)
-                except ConnectionResetError:
-                    logger.error('Could not run job. Maybe broker credentials invalid?!')
-        except queue.Empty:
-            pass
-
-        remove_list = []
-        for job in job_list:
-            if job.is_ready():
-                logger.info('Teardown {}'.format(job))
-                job.teardown_env()
-                if job.state == Job.DONE:
-                    logger.info('Job done...')
-                    shutil.move(job.disc.local_path, job.out_path)
-                else:
-                    logger.info('Job failed...')
-                remove_list.append(job)
-
-        for job in remove_list:
-            logger.info('Removing {}'.format(job))
-            job_list.remove(job)
-
-        del remove_list
-
-        time.sleep(5)
-
-    logger.info('All jobs done!')
+    return (ip, port)
 
 
 def master(hb_config, rip_config, in_path, out_path):
-    # discard possible jobs from before
-    try:
-        discard_all()
-    except OSError:
-        logger.error('Could not connect to host')
-        sys.exit(-1)
+    job_queue = []
 
-    disc_list = []
     for root, dirs, files in os.walk(in_path):
         if dirs:
             logger.error('Subdirs currently not supported!')
             break
         for f in files:
-            disc_list.append(Disc(os.path.join(root, f), f))
+            disc = Disc(os.path.join(root, f), f)
+            job = Job(disc, rip_config, hb_config, in_path, out_path)
+            job_queue.append(job)
+            logger.info('creating job {}'.format(job))
 
-    job_queue = queue.Queue()
-    hashing_done_event = threading.Event()
-    teardown_thread = threading.Thread(target=master_teardown_thread, args=(job_queue, hashing_done_event))
-    teardown_thread.start()
-
-    for d in disc_list:
-        logger.info('creating job {}'.format(d))
-        job = Job(d, rip_config, hb_config, in_path, out_path)
-        job_queue.put(job, block=False)
-
-    hashing_done_event.set()
-
-    teardown_thread.join()
+    # TODO: ip/port
+    master_start_server('0.0.0.0', 5001, job_queue)
 
 
 def rip(out_dir):
@@ -297,7 +243,6 @@ def drm_main():
         except PathIsDirException:
             parser.error('File expected, directory found')
 
-        print('Starting as master... (Celery version {})'.format(Command.version))
         master(hb_config, rip_config, in_path, out_path)
 
     elif args.slave:
@@ -305,7 +250,7 @@ def drm_main():
             parser.error('Handbrake not found! Please install HandBrakeCLI')
 
         try:
-            (ip, user, password) = parse_cfg_slave(args.slave)
+            (ip, port) = parse_cfg_slave(args.slave)
         except InvalidConfigException:
             parser.error(invalid_config_get_text(expected_master=False, path=args.slave))
         except FileNotFoundError:
@@ -314,7 +259,7 @@ def drm_main():
             parser.error('File expected, directory found')
 
         print('Starting as slave...')
-        start_worker(ip, user, password)
+        slave_start(ip, port)
 
     elif args.rip:
         if not all((dvdbackup_check(), genisoimage_check(), eject_check())):

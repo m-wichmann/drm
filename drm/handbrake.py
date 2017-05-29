@@ -18,6 +18,7 @@ class Handbrake(object):
     @staticmethod
     def check_env():
         try:
+            # TODO: This command leaves a dir in the /tmp dir. See also: https://github.com/HandBrake/HandBrake/issues/557
             (retval, stdout, stderr) = popen_wrapper([HANDBRAKE_CLI_BIN, '--version'])
             return retval == 0
         except FileNotFoundError:

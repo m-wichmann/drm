@@ -15,6 +15,9 @@ class Chapter(object):
             return False
         return (self.no == other.no) and (self.length == other.length)
 
+    def repr_json(self):
+        return dict(no=self.no, length=self.length)
+
 
 class Track(object):
     def __init__(self, index, lang):
@@ -31,6 +34,9 @@ class Track(object):
 
     def __repr__(self):
         return self.__str__()
+
+    def repr_json(self):
+        return dict(index=self.index, lang=self.lang)
 
 
 class Title(object):
@@ -51,6 +57,9 @@ class Title(object):
         return ret.format(num=self.index, duration=self.duration, a_tracks=self.a_tracks,
                           s_tracks=self.s_tracks, chapter=len(self.chapters))
 
+    def repr_json(self):
+        return dict(index=self.index, duration=self.duration, a_tracks=self.a_tracks, s_tracks=self.s_tracks, chapters=self.chapters)
+
 
 class Disc(object):
     def __init__(self, local_path, remote_path):
@@ -65,6 +74,9 @@ class Disc(object):
 
     def __repr__(self):
         return self.__str__()
+
+    def repr_json(self):
+        return dict(titles=self.titles, local_path=self.local_path, remote_path=self.remote_path, scanned=self.scanned)
 
 
 class HandbrakeConfig(object):
@@ -90,6 +102,9 @@ class HandbrakeConfig(object):
         self.h264_level = h264_level
         self.fixes = fixes
 
+    def repr_json(self):
+        return dict(preset=self.preset, quality=self.quality, h264_preset=self.h264_preset, h264_profile=self.h264_profile, h264_level=self.h264_level, fixes=self.fixes)
+
 
 class RipConfig(object):
     """
@@ -111,3 +126,6 @@ class RipConfig(object):
         self.s_lang = s_lang
         self.len_range = len_range
         self.fixes = fixes
+
+    def repr_json(self):
+        return dict(a_lang=self.a_lang, s_lang=self.s_lang, len_range=self.len_range, fixes=self.fixes)

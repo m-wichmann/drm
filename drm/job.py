@@ -3,9 +3,7 @@ import hashlib
 import uuid
 import tempfile
 import shutil
-from celery.result import AsyncResult
 from drm.data import HandbrakeConfig, RipConfig, Disc
-from drm.ftp import ftp_get_server
 
 import logging
 logger = logging.getLogger('drm')
@@ -34,66 +32,39 @@ class Job(object):
         self.out_path = out_path
         self.in_path = in_path
 
-        self.hash = self._calc_hash(self.disc.local_path)
         self.name = str(uuid.uuid4())
         self.temp_path = os.path.join(temp_dir.name, self.name)
+        print('temp_path: ', self.temp_path)
         self.state = Job.NOT_STARTED
         self.job_result = None
+
+        self.files = []
 
         self.setup_env()
 
     def __str__(self):
         return self.name + " - " + self.disc.local_path
 
-    def _calc_hash(self, filepath):
-        hash_val = hashlib.md5()
-        with open(filepath, 'rb') as fd:
-            for chunk in iter(lambda: fd.read(4096), b""):
-                hash_val.update(chunk)
-        return hash_val.hexdigest()
-
-    def check_hash(self, filepath):
-        return self.hash == self._calc_hash(filepath)
+    def repr_json(self):
+        return dict(disc=self.disc, rip_config=self.rip_config, hb_config=self.hb_config, out_path=self.out_path, in_path=self.in_path, name=self.name, temp_path=self.temp_path, state=self.state, job_result=self.job_result)
 
     def setup_env(self):
         self.state = Job.RUNNING
         os.mkdir(self.temp_path)
-        ftp_get_server().add_user(self.name, self.in_path, self.temp_path)
 
     def teardown_env(self):
-        if isinstance(self.job_result, AsyncResult):
-            self.job_result = self.job_result.get()
+        print('teardown_env')
 
+        # TODO: this is wrong!
         if self.job_result is None:
             self.job_result = {}
 
-        files_valid = True
-        for f in self.job_result:
-            f_path = os.path.join(self.temp_path, f['name'])
-            f_hash = self._calc_hash(f_path)
-            if f_hash != f['hash']:
-                files_valid = False
-
-        if files_valid:
-            for f in self.job_result:
-                f_path = os.path.join(self.temp_path, f['name'])
-                try:
-                    shutil.move(f_path, self.out_path)
-                except shutil.Error:
-                    print('Output file {filename} already exists. Skipping file...'.format(filename=f_path))
-                    # TODO: what to do, if file already exists
-            self.state = Job.DONE
-        else:
-            self.state = Job.FAILED
+        for f in self.files:
+            try:
+                shutil.move(f, self.out_path)
+            except shutil.Error:
+                print('Output file {filename} already exists. Skipping file...'.format(filename=f))
+                # TODO: what to do, if file already exists
+        self.state = Job.DONE
 
         shutil.rmtree(self.temp_path)
-        ftp_get_server().rem_user(self.name)
-
-    def run(self, job_runner):
-        self.job_result = job_runner(self)
-
-    def is_ready(self):
-        if isinstance(self.job_result, AsyncResult):
-            return self.job_result.ready()
-        else:
-            return True
