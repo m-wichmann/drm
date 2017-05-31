@@ -6,7 +6,6 @@ import datetime
 from drm.data import Title, Track, Chapter
 from drm.util import popen_wrapper
 
-
 import logging
 logger = logging.getLogger('drm')
 
@@ -176,7 +175,6 @@ class Handbrake(object):
 
         return cmd
 
-
     @staticmethod
     def encode_title(hb_config, rip_config, in_path, out_path, title, chapters=None):
         title_path = ""
@@ -205,7 +203,6 @@ class Handbrake(object):
         (retval, stdout, stderr) = popen_wrapper(cmd)
 
         return title_path
-
 
     @staticmethod
     def encode_titles(hb_config, rip_config, titles, in_path, out_path):

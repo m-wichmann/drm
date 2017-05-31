@@ -4,17 +4,21 @@ import os
 import shutil
 import threading
 import time
+import datetime
 import flask
 from flask import Flask, Response, request, flash
 
+import drm
 
-HEARTBEAT_CHECK_PERIOD = 300         # in seconds
+
+HEARTBEAT_CHECK_PERIOD = 10         # in seconds
+HEARTBEAT_TIMEOUT_PERIOD = 30       # in seconds
 
 
 flask_app = Flask('drm')
 
 job_queue = []
-working_queue = []
+working_queue = {}                  # Format: {job: (host, timestamp), ...}
 
 
 def get_working_job_by_id(job_id):
@@ -24,49 +28,61 @@ def get_working_job_by_id(job_id):
     return None
 
 
-# TODO
-#@flask_app.route('/version', methods=['GET'])
-#def version():
-#    return Response(DRM_VERSION, mimetype='application/json')
+@flask_app.route('/version', methods=['GET'])
+def version():
+    return Response(json.dumps(drm.__version__), mimetype='application/json')
 
 
-@flask_app.route('/job', methods=['GET'])
+@flask_app.route('/jobs/', methods=['GET'])
 def get_job():
-    # TODO: Return one job
     # TODO: What to do if no job available
 
+    # TODO: check if this works
+    host_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+    timestamp = datetime.datetime.now()
+
     job = job_queue.pop()
+
+    # TODO: fix the format
     j = json.dumps(job, cls=ComplexEncoder)
-    working_queue.append(job)
+
+    working_queue[job] = (host_address, timestamp)
 
     return Response(j, mimetype='application/json')
 
 
 @flask_app.route('/jobs/<uuid:job_id>', methods=['GET', 'POST'])
 def handle_job(job_id):
-    if request.method == 'POST':
-        job = get_working_job_by_id(job_id)
+    job = get_working_job_by_id(job_id)
+    # TODO: fail if job not found
 
+    if request.method == 'POST':
         # Copy files
         for f in request.files:
-            print('copy ', f)
+            print('copying ', f)
             request.files[f].save(os.path.join(job.temp_path, f))
             job.files.append(os.path.join(job.temp_path, f))
 
         # read status
         if (request.form['state'] == 'DONE'):
-            print('job done')
             job.teardown_env()
             shutil.move(job.disc.local_path, job.out_path)
-            working_queue.remove(job)
-            print('stuff moved')
+            del working_queue[job]
         elif (request.form['state'] == 'WORKING'):
-            pass
-            # TODO: Heartbeat verarbeiten
+            host_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            timestamp = datetime.datetime.now()
+
+            if working_queue[job][0] != host_address:
+                print('ERROR: job response from unknown host')
+                del working_queue[job]
+                job_queue.append(job)
+                # TODO: response
+                return ""
+
+            working_queue[job] = (working_queue[job][0], timestamp)
 
         return ""
     else:
-        job = get_working_job_by_id(job_id)
         (dir_path, file_name) = os.path.split(os.path.abspath(job.disc.local_path))
         return flask.send_from_directory(dir_path, file_name, as_attachment=True)
 
@@ -83,7 +99,18 @@ def heartbeat_thread():
     while 1:
         time.sleep(HEARTBEAT_CHECK_PERIOD)
 
-        # TODO: handle heartbeat
+        timestamp = datetime.datetime.now() - datetime.timedelta(seconds=HEARTBEAT_TIMEOUT_PERIOD)
+
+        job_timeout_list = []
+
+        for job in working_queue:
+            if working_queue[job][1] < timestamp:
+                print("Job timed out: ", job)
+                job_timeout_list.append(job)
+
+        for job in job_timeout_list:
+            del working_queue[job]
+            job_queue.append(job)
 
 
 def master_start_server(ip, port, _job_queue):
@@ -94,4 +121,4 @@ def master_start_server(ip, port, _job_queue):
     t = threading.Thread(target=heartbeat_thread)
     t.start()
 
-    flask_app.run(host=ip, port=port)
+    flask_app.run(host=ip, port=port, threaded=True)

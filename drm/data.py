@@ -1,3 +1,36 @@
+import logging
+logger = logging.getLogger('drm')
+
+
+class Fix(object):
+    allowed_fixes = {
+        "remove_duplicate_tracks": "Tries to remove duplicate tracks, if there are the same length and directly after one another.",
+        "reencode_audio":          "Reencode audio to mp3. Otherwise audio will be copied.",
+        "split_every_chapters":    "Splits every title depending on the chapters. int for equal sized chunks, list of ints for different chunk lengths.",
+        "use_libdvdread":          "Use libdvdread instead of libdvdnav."
+    }
+
+    def __init__(self, name, value):
+        if name not in Fix.allowed_fixes:
+            raise KeyError()
+
+        self.name = name
+        self.value = value
+
+    def __eq__(self, other):
+        if isinstance(other, Fix):
+            return (self.name == other.name) and (self.value == other.value)
+        elif isinstance(other, str):
+            return self.name == other
+        else:
+            return False
+
+    def __str__(self):
+        return self.name
+
+    def repr_json(self):
+        return dict(name=self.name, value=self.value)
+
 
 class Chapter(object):
     def __init__(self, no, length):
@@ -80,9 +113,6 @@ class Disc(object):
 
 
 class HandbrakeConfig(object):
-    """
-        For list of possible fixes, see RipConfig.
-    """
     def __init__(self, preset=None, quality=20, h264_preset='medium', h264_profile='high',
                  h264_level='4.1', fixes=None):
         if h264_preset not in ['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow', 'placebo']:
@@ -100,20 +130,13 @@ class HandbrakeConfig(object):
         self.h264_preset = h264_preset
         self.h264_profile = h264_profile
         self.h264_level = h264_level
-        self.fixes = fixes
+        self.fixes = [Fix(f, fixes[f]) for f in fixes]
 
     def repr_json(self):
         return dict(preset=self.preset, quality=self.quality, h264_preset=self.h264_preset, h264_profile=self.h264_profile, h264_level=self.h264_level, fixes=self.fixes)
 
 
 class RipConfig(object):
-    """
-        Possible fixes:
-            remove_duplicate_tracks     ==> Tries to remove duplicate tracks, if there are the same length and directly after one another.
-            reencode_audio              ==> Reencode audio to mp3. Otherwise audio will be copied.
-            split_every_chapters        ==> Splits every title depending on the chapters. int for equal sized chunks, list of ints for different chunk lengths.
-            use_libdvdread              ==> Use libdvdread instead of libdvdnav
-    """
     def __init__(self, a_lang=None, s_lang=None, len_range=(15, 50), fixes=None):
         if a_lang is None:
             a_lang=['eng', 'deu']
@@ -125,7 +148,7 @@ class RipConfig(object):
         self.a_lang = a_lang
         self.s_lang = s_lang
         self.len_range = len_range
-        self.fixes = fixes
+        self.fixes = [Fix(f, fixes[f]) for f in fixes]
 
     def repr_json(self):
         return dict(a_lang=self.a_lang, s_lang=self.s_lang, len_range=self.len_range, fixes=self.fixes)

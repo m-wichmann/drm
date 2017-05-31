@@ -36,7 +36,7 @@ def dvdbackup(output_dir, title_name):
            '-o', output_dir,        # output directory
            '-n', title_name]        # Title name
     (retval, stdout, stderr) = popen_wrapper(cmd)
-    # TODO: error checking
+    return retval == 0
 
 
 def dvdbackup_check():
@@ -53,7 +53,7 @@ def genisoimage(out_path, temp_path):
            '-o', out_path,
            temp_path]
     (retval, stdout, stderr) = popen_wrapper(cmd)
-    # TODO: error checking
+    return retval == 0
 
 
 def genisoimage_check():
@@ -66,7 +66,7 @@ def genisoimage_check():
 
 def eject():
     (retval, stdout, stderr) = popen_wrapper([EJECT_BIN])
-    # TODO: error checking
+    return retval == 0
 
 
 def eject_check():

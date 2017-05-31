@@ -11,8 +11,10 @@ import json
 import threading
 import queue
 import textwrap
+import pathlib
 
-from drm.data import HandbrakeConfig, RipConfig, Disc
+import drm
+from drm.data import HandbrakeConfig, RipConfig, Disc, Fix
 from drm.job import Job
 from drm.handbrake import Handbrake
 from drm.util import *
@@ -20,7 +22,7 @@ from drm.master import master_start_server
 from drm.slave import slave_start
 
 
-DRM_VERSION = "2.0.0"
+MIN_DISK_SPACE_LEFT = 15                # in gb
 
 
 import logging
@@ -105,6 +107,13 @@ def parse_cfg_slave(cfg_path):
 
 
 def master(hb_config, rip_config, in_path, out_path):
+    print('Starting as master...')
+
+    if len(rip_config.fixes) > 0:
+        print('Active fixes:')
+        for fix in rip_config.fixes:
+            print('  ', fix)
+
     job_queue = []
 
     for root, dirs, files in os.walk(in_path):
@@ -121,38 +130,78 @@ def master(hb_config, rip_config, in_path, out_path):
     master_start_server('0.0.0.0', 5001, job_queue)
 
 
+def slave(ip, port):
+    print('Starting as slave...')
+    slave_start(ip, port)
+
+
 def rip(out_dir):
+    if not any([dvdbackup_check(), genisoimage_check(), eject_check()]):
+        print('Some necessary tool not found (dvdbackup, genisoimage, eject)')
+        return
+
     while True:
-        name = input('Please enter disc name (empty to end): ')
+        # Check if there is still some disk space left
+        (_, _, free_mem) = shutil.disk_usage(out_dir)
+        free_mem_gb = free_mem / 1024 / 1024 / 1024
+        if free_mem_gb < MIN_DISK_SPACE_LEFT:
+            print('Warning: Free space in out dir might not be enough')
 
+        # Get name for image
+        try:
+            name = input('Please enter disc name (empty to end): ')
+        except KeyboardInterrupt:
+            break
+
+        # Empty name to exit
         if name == '':
-            sys.exit(0)
+            break
 
+        # Images are expected to use upper case (not necessary, but used here)
         name = name.upper()
 
         temp_dir = tempfile.TemporaryDirectory()
         out_path = os.path.join(out_dir, name + '.iso')
 
+        if pathlib.Path(out_path).is_file():
+            print('Warning: file already exists')
+            continue
+
         time_started = datetime.datetime.now()
 
-        dvdbackup(temp_dir.name, name)
-        genisoimage(out_path, os.path.join(temp_dir.name, name))
+        rip_success = True
+
+        try:
+            if rip_success:
+                rip_success = dvdbackup(temp_dir.name, name)
+            if rip_success:
+                rip_success = genisoimage(out_path, os.path.join(temp_dir.name, name))
+        except KeyboardInterrupt:
+            break
 
         time_done = datetime.datetime.now()
 
-        # delete temp_dir explicitly, so memory gets freed
+        # delete temp_dir explicitly, so memory gets freed right now
         del temp_dir
 
-        # TODO: check ret value of dvdbackup and genisoimage
-        # TODO: implement check_env
-
-        eject()
-
-        # TODO: rip also failed, if image is 0.0 GB
+        # Eject disk
+        eject_retval = eject()
+        if not eject_retval:
+            print('Eject failed!')
 
         try:
-            print('Done {} [{} GB, {}]!'.format(name, os.path.getsize(out_path) / (2**30), time_done - time_started))
+            image_size = os.path.getsize(out_path)
         except FileNotFoundError:
+            rip_success = False
+            image_size = 0
+
+        # If image is 0 byte, ripping failed, and there won't be a real image
+        if image_size == 0:
+            rip_success = False
+
+        if rip_success:
+            print('Done {} [{} GB, {}]!'.format(name, image_size / (1024 * 1024 * 1024), time_done - time_started))
+        else:
             print('Failed {} [{}]'.format(name, time_done - time_started))
 
 
@@ -190,6 +239,10 @@ def help_build_epilog():
     found_eject = eject_check()
     found_mkvprop = mkvpropedit_check()
 
+    allowed_fixes = "\n"
+    for fix in Fix.allowed_fixes:
+        allowed_fixes += '                 ' + fix + '\n'
+
     help_text = """
                Tools:
                  Handbrake      {handbrake}
@@ -197,6 +250,8 @@ def help_build_epilog():
                  genisoimage    {genisoimage}
                  eject          {eject}
                  mkvpropedit    {mkvpropedit}
+
+               Available fixes:{allowed_fixes}
 
                Examples:
                  $ drm --rip isos/          # Rip DVDs to dir isos/
@@ -212,17 +267,18 @@ def help_build_epilog():
                                  dvdbackup="Found" if found_dvdbackup else "Not found! --rip not available",
                                  genisoimage="Found" if found_geniso else "Not found! --rip not available",
                                  eject="Found" if found_eject else "Not found! --rip not available",
-                                 mkvpropedit="Found" if found_mkvprop else "Not found! --prop not available")
+                                 mkvpropedit="Found" if found_mkvprop else "Not found! --prop not available",
+                                 allowed_fixes=allowed_fixes)
 
     return textwrap.dedent(help_text)
 
 
 def drm_main():
-    parser = argparse.ArgumentParser(description='Distributed video transcoder based on HandBrake and Celery.',
+    parser = argparse.ArgumentParser(description='Distributed video transcoder based on HandBrake.',
                                      epilog=help_build_epilog(),
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
 
-    parser.add_argument('--version', action='version', version='%(prog)s ' + DRM_VERSION)
+    parser.add_argument('--version', action='version', version='%(prog)s ' + drm.__version__)
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--master', action='store', help='start drm as master to distribute image files to the slaves')
@@ -258,8 +314,7 @@ def drm_main():
         except PathIsDirException:
             parser.error('File expected, directory found')
 
-        print('Starting as slave...')
-        slave_start(ip, port)
+        slave(ip, port)
 
     elif args.rip:
         if not all((dvdbackup_check(), genisoimage_check(), eject_check())):
@@ -268,6 +323,12 @@ def drm_main():
         # Try if path is config file, if so, use in_path of config
         try:
             (hb_config, rip_config, in_path, out_path) = parse_cfg_master(args.rip)
+
+            if len(rip_config.fixes) > 0:
+                print('Active fixes:')
+                for fix in rip_config.fixes:
+                    print('  ', fix)
+
             rip_dir = in_path
         except InvalidConfigException:
             parser.error(invalid_config_get_text(expected_master=True, path=args.rip))

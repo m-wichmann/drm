@@ -34,7 +34,6 @@ class Job(object):
 
         self.name = str(uuid.uuid4())
         self.temp_path = os.path.join(temp_dir.name, self.name)
-        print('temp_path: ', self.temp_path)
         self.state = Job.NOT_STARTED
         self.job_result = None
 
