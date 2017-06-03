@@ -14,9 +14,8 @@ import textwrap
 import pathlib
 
 import drm
-from drm.data import HandbrakeConfig, RipConfig, Disc, Fix
-from drm.job import Job
-from drm.handbrake import Handbrake
+from drm.data import HandbrakeConfig, RipConfig, Disc, Fix, Job
+import drm.handbrake as handbrake
 from drm.util import *
 from drm.master import master_start_server
 from drm.slave import slave_start
@@ -67,16 +66,17 @@ def parse_cfg_master(cfg_path):
     try:
         with open(cfg_path, 'r') as fd:
             data = json.load(fd)
-
             hb_config = HandbrakeConfig(quality=data['hb_config']['quality'],
                                         h264_preset=data['hb_config']['h264_preset'],
                                         h264_profile=data['hb_config']['h264_profile'],
-                                        h264_level=data['hb_config']['h264_level'],
-                                        fixes=data['fixes'])
+                                        h264_level=data['hb_config']['h264_level'])
             rip_config = RipConfig(a_lang=data['rip_config']['a_tracks'],
                                    s_lang=data['rip_config']['s_tracks'],
-                                   len_range=(data['rip_config']['min_dur'], data['rip_config']['max_dur']),
-                                   fixes=data['fixes'])
+                                   len_range=(data['rip_config']['min_dur'], data['rip_config']['max_dur']))
+
+            fixes = []
+            for fix in data['fixes']:
+                fixes.append(Fix(fix, data['fixes'][fix]))
 
             in_path = data['in_path']
             out_path = data['out_path']
@@ -87,7 +87,7 @@ def parse_cfg_master(cfg_path):
     except IsADirectoryError:
         raise PathIsDirException('Config file expected, directory found')
 
-    return (hb_config, rip_config, in_path, out_path)
+    return (hb_config, rip_config, fixes, in_path, out_path)
 
 
 def parse_cfg_slave(cfg_path):
@@ -106,12 +106,12 @@ def parse_cfg_slave(cfg_path):
     return (ip, port)
 
 
-def master(hb_config, rip_config, in_path, out_path):
+def master(hb_config, rip_config, fixes, in_path, out_path):
     print('Starting as master...')
 
-    if len(rip_config.fixes) > 0:
+    if len(fixes) > 0:
         print('Active fixes:')
-        for fix in rip_config.fixes:
+        for fix in fixes:
             print('  ', fix)
 
     job_queue = []
@@ -121,13 +121,13 @@ def master(hb_config, rip_config, in_path, out_path):
             logger.error('Subdirs currently not supported!')
             break
         for f in files:
-            disc = Disc(os.path.join(root, f), f)
-            job = Job(disc, rip_config, hb_config, in_path, out_path)
+            disc = Disc(os.path.join(root, f))
+            job = Job(disc, rip_config, hb_config, fixes)
             job_queue.append(job)
             logger.info('creating job {}'.format(job))
 
     # TODO: ip/port
-    master_start_server('0.0.0.0', 5001, job_queue)
+    master_start_server('0.0.0.0', 5001, job_queue, out_path)
 
 
 def slave(ip, port):
@@ -213,8 +213,8 @@ def list_titles(target_dir, rip_config):
     for root, dirs, files in os.walk(target_dir):
         for f in files:
             print(os.path.join(root, f), end='')
-            track_list = Handbrake.scan_disc(os.path.join(root, f), use_libdvdread)
-            track_list = Handbrake.filter_titles(track_list, *rip_config.len_range, rip_config.a_lang, rip_config.s_lang)
+            track_list = handbrake.scan_disc(os.path.join(root, f), use_libdvdread)
+            track_list = handbrake.filter_titles(track_list, *rip_config.len_range, rip_config.a_lang, rip_config.s_lang)
             print(' => {} matching tracks...'.format(len(track_list)))
             for track in track_list:
                 print('  ', track)
@@ -233,7 +233,7 @@ def set_properties(target_dir):
 
 
 def help_build_epilog():
-    found_hb = Handbrake.check_env()
+    found_hb = handbrake.check_env()
     found_dvdbackup = dvdbackup_check()
     found_geniso = genisoimage_check()
     found_eject = eject_check()
@@ -291,7 +291,7 @@ def drm_main():
 
     if args.master:
         try:
-            (hb_config, rip_config, in_path, out_path) = parse_cfg_master(args.master)
+            (hb_config, rip_config, fixes, in_path, out_path) = parse_cfg_master(args.master)
         except InvalidConfigException:
             parser.error(invalid_config_get_text(expected_master=True, path=args.master))
         except FileNotFoundError:
@@ -299,10 +299,10 @@ def drm_main():
         except PathIsDirException:
             parser.error('File expected, directory found')
 
-        master(hb_config, rip_config, in_path, out_path)
+        master(hb_config, rip_config, fixes, in_path, out_path)
 
     elif args.slave:
-        if not Handbrake.check_env():
+        if not handbrake.check_env():
             parser.error('Handbrake not found! Please install HandBrakeCLI')
 
         try:
@@ -322,7 +322,7 @@ def drm_main():
 
         # Try if path is config file, if so, use in_path of config
         try:
-            (hb_config, rip_config, in_path, out_path) = parse_cfg_master(args.rip)
+            (hb_config, rip_config, fixes, in_path, out_path) = parse_cfg_master(args.rip)
 
             if len(rip_config.fixes) > 0:
                 print('Active fixes:')
@@ -340,12 +340,12 @@ def drm_main():
         rip(rip_dir)
 
     elif args.list:
-        if not Handbrake.check_env():
+        if not handbrake.check_env():
             parser.error('Handbrake not found! Please install HandBrakeCLI')
 
         # Try if path is config file, if so, use in_path of config
         try:
-            (hb_config, rip_config, in_path, out_path) = parse_cfg_master(args.list)
+            (hb_config, rip_config, fixes, in_path, out_path) = parse_cfg_master(args.list)
             list_dir = in_path
             list_rip_config = rip_config
         except InvalidConfigException:

@@ -1,4 +1,3 @@
-import queue
 import json
 import os
 import shutil
@@ -6,7 +5,7 @@ import threading
 import time
 import datetime
 import flask
-from flask import Flask, Response, request, flash
+from flask import Flask, Response, request
 
 import drm
 
@@ -16,6 +15,8 @@ HEARTBEAT_TIMEOUT_PERIOD = 30       # in seconds
 
 
 flask_app = Flask('drm')
+
+out_path = "."
 
 job_queue = []
 working_queue = {}                  # Format: {job: (host, timestamp), ...}
@@ -35,26 +36,29 @@ def version():
 
 @flask_app.route('/jobs/', methods=['GET'])
 def get_job():
-    # TODO: What to do if no job available
-
     # TODO: check if this works
     host_address = request.headers.get('X-Forwarded-For', request.remote_addr)
     timestamp = datetime.datetime.now()
 
-    job = job_queue.pop()
+    try:
+        job = job_queue.pop()
+        job_desc = json.dumps({'name': job.name, 'rip_config': job.rip_config.dump_data(), 'hb_config': job.hb_config.dump_data(), 'fixes': [fix.dump_data() for fix in job.fixes]})
+        working_queue[job] = (host_address, timestamp)
+    except IndexError:
+        # No more jobs available
+        job_desc = json.dumps(None)
 
-    # TODO: fix the format
-    j = json.dumps(job, cls=ComplexEncoder)
-
-    working_queue[job] = (host_address, timestamp)
-
-    return Response(j, mimetype='application/json')
+    return Response(job_desc, mimetype='application/json')
 
 
 @flask_app.route('/jobs/<uuid:job_id>', methods=['GET', 'POST'])
 def handle_job(job_id):
     job = get_working_job_by_id(job_id)
-    # TODO: fail if job not found
+
+    if job is None:
+        # TODO: Should only happen via heartbeat while sending files
+        print('job {} not found!'.format(str(job_id)))
+        return ""
 
     if request.method == 'POST':
         # Copy files
@@ -65,8 +69,20 @@ def handle_job(job_id):
 
         # read status
         if (request.form['state'] == 'DONE'):
-            job.teardown_env()
-            shutil.move(job.disc.local_path, job.out_path)
+
+            # TODO: outsource from job. Ok?
+            for f in job.files:
+                try:
+                    shutil.move(f, out_path)
+                except shutil.Error:
+                    print('Output file {filename} already exists. Skipping file...'.format(filename=f))
+                    # TODO: what to do, if file already exists
+
+            shutil.rmtree(job.temp_path)
+
+
+            # TODO: this might take a _long_ time
+            shutil.move(job.disc.local_path, out_path)
             del working_queue[job]
         elif (request.form['state'] == 'WORKING'):
             host_address = request.headers.get('X-Forwarded-For', request.remote_addr)
@@ -87,16 +103,8 @@ def handle_job(job_id):
         return flask.send_from_directory(dir_path, file_name, as_attachment=True)
 
 
-class ComplexEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if hasattr(obj,'repr_json'):
-            return obj.repr_json()
-        else:
-            return json.JSONEncoder.default(self, obj)
-
-
 def heartbeat_thread():
-    while 1:
+    while True:
         time.sleep(HEARTBEAT_CHECK_PERIOD)
 
         timestamp = datetime.datetime.now() - datetime.timedelta(seconds=HEARTBEAT_TIMEOUT_PERIOD)
@@ -113,9 +121,12 @@ def heartbeat_thread():
             job_queue.append(job)
 
 
-def master_start_server(ip, port, _job_queue):
+def master_start_server(ip, port, _job_queue, _out_path):
     global job_queue
     job_queue = _job_queue
+
+    global out_path
+    out_path = _out_path
 
     # add heartbeat thread
     t = threading.Thread(target=heartbeat_thread)

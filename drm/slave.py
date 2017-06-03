@@ -1,5 +1,4 @@
 import json
-import urllib
 import tempfile
 import re
 import os
@@ -7,15 +6,18 @@ import shutil
 import threading
 import time
 import requests
-from requests.compat import urljoin
 
 import drm
-from drm.data import HandbrakeConfig, RipConfig, Disc
-from drm.handbrake import Handbrake
+from drm.data import HandbrakeConfig, RipConfig, Fix
+import drm.handbrake as handbrake
 
 
 MIN_DISK_SPACE_LEFT = 15                # in gb
 HEARTBEAT_CHECK_PERIOD = 5             # in seconds
+
+
+class JobFetchException(Exception):
+    pass
 
 
 def check_master(ip, port):
@@ -37,29 +39,20 @@ def get_job(ip, port):
     url = 'http://{ip}:{port}/jobs/'.format(ip=ip, port=port)
     r = requests.get(url)
     if r.status_code != 200:
-        # TODO
-        raise Exception()
+        raise JobFetchException('Request failed ({})'.format(r.status_code))
 
     # parse json
     data = json.loads(r.text)
 
+    if data is None:
+        raise JobFetchException('No more jobs available')
+
     job_id = data['name']
+    rip_config = RipConfig.parse_data(data['rip_config'])
+    hb_config = HandbrakeConfig.parse_data(data['hb_config'])
+    fixes = [Fix.parse_data(fix) for fix in data['fixes']]
 
-    rip_config = RipConfig()
-    rip_config.fixes = data['rip_config']['fixes']
-    rip_config.len_range = data['rip_config']['len_range']
-    rip_config.a_lang = data['rip_config']['a_lang']
-    rip_config.s_lang = data['rip_config']['s_lang']
-
-    hb_config = HandbrakeConfig()
-    hb_config.preset = data['hb_config']['preset']
-    hb_config.quality = data['hb_config']['quality']
-    hb_config.h264_preset = data['hb_config']['h264_preset']
-    hb_config.h264_profile = data['hb_config']['h264_profile']
-    hb_config.h264_level = data['hb_config']['h264_level']
-    hb_config.fixes = data['hb_config']['fixes']
-
-    return (job_id, rip_config, hb_config)
+    return (job_id, rip_config, hb_config, fixes)
 
 
 def get_input_file(ip, port, job_id, path):
@@ -67,7 +60,7 @@ def get_input_file(ip, port, job_id, path):
     r = requests.get(url, stream=True)
 
     filename = re.findall("filename=(.+)", r.headers['content-disposition'])
-    if (len(filename) != 1):
+    if len(filename) != 1:
         raise Exception()
     filename = filename[0]
 
@@ -100,6 +93,7 @@ class HeartbeatContextManager(object):
         self.ip = ip
         self.port = port
         self.job_id = job_id
+        self.keep_running = True
 
     def do_hearbeat(self):
         status = {'state': 'WORKING'}
@@ -107,7 +101,7 @@ class HeartbeatContextManager(object):
         r = requests.post(url, files={}, data=status)
 
     def heartbeat_thread(self):
-        while True:
+        while self.keep_running:
             time.sleep(HEARTBEAT_CHECK_PERIOD)
             self.do_hearbeat()
 
@@ -116,6 +110,7 @@ class HeartbeatContextManager(object):
         self.t.start()
 
     def __exit__(self, *exc):
+        self.keep_running = False
         self.t.join()
 
 
@@ -134,8 +129,8 @@ def slave_start(ip, port):
             print('Warning: Free space in temp dir might not be enough')
 
         try:
-            (job_id, rip_config, hb_config) = get_job(ip, port)
-        except Exception:
+            (job_id, rip_config, hb_config, fixes) = get_job(ip, port)
+        except JobFetchException:
             break
 
         with HeartbeatContextManager(ip, port, job_id):
@@ -143,17 +138,18 @@ def slave_start(ip, port):
 
             in_path = os.path.join(temp_dir.name, input_file_name)
 
-            hb = Handbrake()
-            titles = hb.scan_disc(in_path, 'use_libdvdread' in rip_config.fixes)
-            titles = hb.filter_titles(titles,
+            titles = handbrake.scan_disc(in_path, 'use_libdvdread' in fixes)
+            titles = handbrake.filter_titles(titles,
                                       rip_config.len_range[0], rip_config.len_range[1],
                                       rip_config.a_lang, rip_config.s_lang)
 
-            if 'remove_duplicate_tracks' in rip_config.fixes:
-                titles = hb.remove_duplicate_tracks(titles)
+            if 'remove_duplicate_tracks' in fixes:
+                titles = handbrake.remove_duplicate_tracks(titles)
 
-            out_list = hb.encode_titles(hb_config, rip_config, titles, in_path, temp_dir.name)
+            out_list = handbrake.encode_titles(hb_config, rip_config, fixes, titles, in_path, temp_dir.name)
 
             send_files(ip, port, job_id, out_list, temp_dir.name)
 
         print('job done')
+
+    print('All jobs done...')
