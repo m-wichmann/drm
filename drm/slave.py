@@ -6,10 +6,14 @@ import shutil
 import threading
 import time
 import requests
+import logging
 
 import drm
 from drm.data import HandbrakeConfig, RipConfig, Fix
 import drm.handbrake as handbrake
+
+
+logger = logging.getLogger('drm')
 
 
 MIN_DISK_SPACE_LEFT = 15                # in gb
@@ -59,7 +63,7 @@ def get_input_file(ip, port, job_id, path):
     url = 'http://{ip}:{port}/jobs/{job_id}'.format(ip=ip, port=port, job_id=job_id)
     r = requests.get(url, stream=True)
 
-    filename = re.findall("filename=(.+)", r.headers['content-disposition'])
+    filename = re.findall('filename=(.+)', r.headers['content-disposition'])
     if len(filename) != 1:
         raise Exception()
     filename = filename[0]
@@ -75,8 +79,6 @@ def get_input_file(ip, port, job_id, path):
 
 
 def send_files(ip, port, job_id, files, temp_dir):
-    print('send_files')
-
     # currently this function always ends the job
     status = {'state': 'DONE'}
 
@@ -116,7 +118,7 @@ class HeartbeatContextManager(object):
 
 def slave_start(ip, port):
     if not check_master(ip, port):
-        print('drm version on master/slave do not match')
+        logger.error('drm version on master/slave do not match')
         return
 
     while True:
@@ -126,7 +128,7 @@ def slave_start(ip, port):
         (_, _, free_mem) = shutil.disk_usage(temp_dir.name)
         free_mem_gb = free_mem / 1024 / 1024 / 1024
         if free_mem_gb < MIN_DISK_SPACE_LEFT:
-            print('Warning: Free space in temp dir might not be enough')
+            logger.warning('Free space in temp dir might not be enough')
 
         try:
             (job_id, rip_config, hb_config, fixes) = get_job(ip, port)
@@ -137,11 +139,10 @@ def slave_start(ip, port):
             input_file_name = get_input_file(ip, port, job_id, temp_dir.name)
 
             in_path = os.path.join(temp_dir.name, input_file_name)
-
             titles = handbrake.scan_disc(in_path, 'use_libdvdread' in fixes)
             titles = handbrake.filter_titles(titles,
-                                      rip_config.len_range[0], rip_config.len_range[1],
-                                      rip_config.a_lang, rip_config.s_lang)
+                                             rip_config.len_range[0], rip_config.len_range[1],
+                                             rip_config.a_lang, rip_config.s_lang)
 
             if 'remove_duplicate_tracks' in fixes:
                 titles = handbrake.remove_duplicate_tracks(titles)
@@ -150,6 +151,6 @@ def slave_start(ip, port):
 
             send_files(ip, port, job_id, out_list, temp_dir.name)
 
-        print('job done')
+        logger.info('job done')
 
-    print('All jobs done...')
+    logger.info('All jobs done...')

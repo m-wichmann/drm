@@ -1,10 +1,6 @@
 import os
 import uuid
 import tempfile
-import json
-
-import logging
-logger = logging.getLogger('drm')
 
 
 temp_dir = tempfile.TemporaryDirectory()
@@ -37,10 +33,10 @@ class Job(object):
 
 class Fix(object):
     allowed_fixes = {
-        "remove_duplicate_tracks": "Tries to remove duplicate tracks, if there are the same length and directly after one another.",
-        "reencode_audio":          "Reencode audio to mp3. Otherwise audio will be copied.",
-        "split_every_chapters":    "Splits every title depending on the chapters. int for equal sized chunks, list of ints for different chunk lengths.",
-        "use_libdvdread":          "Use libdvdread instead of libdvdnav."
+        'remove_duplicate_tracks': 'Tries to remove duplicate tracks, if there are the same length and directly after one another.',
+        'reencode_audio': 'Reencode audio to mp3. Otherwise audio will be copied.',
+        'split_every_chapters': 'Splits every title depending on the chapters. int for equal sized chunks, list of ints for different chunk lengths.',
+        'use_libdvdread': 'Use libdvdread instead of libdvdnav.'
     }
 
     def __init__(self, name, value):
@@ -106,7 +102,7 @@ class Track(object):
 class Title(object):
     def __init__(self, index):
         self.index = index
-        self.duration = ""
+        self.duration = ''
         self.a_tracks = []
         self.s_tracks = []
         self.chapters = []
@@ -117,7 +113,7 @@ class Title(object):
         return (self.duration == other.duration) and (self.a_tracks == other.a_tracks) and (self.s_tracks == other.s_tracks) and (self.chapters == other.chapters)
 
     def __str__(self):
-        ret = "Title: {num} - {duration} - A: {a_tracks} S: {s_tracks} - {chapter} chapters"
+        ret = 'Title: {num} - {duration} - A: {a_tracks} S: {s_tracks} - {chapter} chapters'
         return ret.format(num=self.index, duration=self.duration, a_tracks=self.a_tracks,
                           s_tracks=self.s_tracks, chapter=len(self.chapters))
 

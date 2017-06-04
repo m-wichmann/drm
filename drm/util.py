@@ -12,8 +12,8 @@ def popen_wrapper(cmd, timeout=None):
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     retval = None
-    stdout = ""
-    stderr = ""
+    stdout = ''
+    stderr = ''
 
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
@@ -31,7 +31,7 @@ def popen_wrapper(cmd, timeout=None):
 
 def dvdbackup(output_dir, title_name):
     cmd = [DVDBACKUP_BIN,
-           '-M',                    # "mirror"; Backup whole DVD
+           '-M',                    # 'mirror'; Backup whole DVD
            '-i', '/dev/dvd',        # input device
            '-o', output_dir,        # output directory
            '-n', title_name]        # Title name

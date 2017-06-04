@@ -4,10 +4,15 @@ import shutil
 import threading
 import time
 import datetime
+import logging
+
 import flask
 from flask import Flask, Response, request
 
 import drm
+
+
+logger = logging.getLogger('drm')
 
 
 HEARTBEAT_CHECK_PERIOD = 10         # in seconds
@@ -16,8 +21,7 @@ HEARTBEAT_TIMEOUT_PERIOD = 30       # in seconds
 
 flask_app = Flask('drm')
 
-out_path = "."
-
+out_path = '.'
 job_queue = []
 working_queue = {}                  # Format: {job: (host, timestamp), ...}
 
@@ -57,13 +61,13 @@ def handle_job(job_id):
 
     if job is None:
         # TODO: Should only happen via heartbeat while sending files
-        print('job {} not found!'.format(str(job_id)))
-        return ""
+        logger.warning('job {} not found!'.format(str(job_id)))
+        return ''
 
     if request.method == 'POST':
         # Copy files
         for f in request.files:
-            print('copying ', f)
+            logger.info('copying %s', f)
             request.files[f].save(os.path.join(job.temp_path, f))
             job.files.append(os.path.join(job.temp_path, f))
 
@@ -75,11 +79,10 @@ def handle_job(job_id):
                 try:
                     shutil.move(f, out_path)
                 except shutil.Error:
-                    print('Output file {filename} already exists. Skipping file...'.format(filename=f))
+                    logger.error('Output file {filename} already exists. Skipping file...'.format(filename=f))
                     # TODO: what to do, if file already exists
 
             shutil.rmtree(job.temp_path)
-
 
             # TODO: this might take a _long_ time
             shutil.move(job.disc.local_path, out_path)
@@ -89,15 +92,15 @@ def handle_job(job_id):
             timestamp = datetime.datetime.now()
 
             if working_queue[job][0] != host_address:
-                print('ERROR: job response from unknown host')
+                logger.error('Job response from unknown host')
                 del working_queue[job]
                 job_queue.append(job)
                 # TODO: response
-                return ""
+                return ''
 
             working_queue[job] = (working_queue[job][0], timestamp)
 
-        return ""
+        return ''
     else:
         (dir_path, file_name) = os.path.split(os.path.abspath(job.disc.local_path))
         return flask.send_from_directory(dir_path, file_name, as_attachment=True)
@@ -113,7 +116,7 @@ def heartbeat_thread():
 
         for job in working_queue:
             if working_queue[job][1] < timestamp:
-                print("Job timed out: ", job)
+                logger.error('Job timed out: ', job)
                 job_timeout_list.append(job)
 
         for job in job_timeout_list:
