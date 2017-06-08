@@ -17,6 +17,7 @@ logger = logging.getLogger('drm')
 
 
 MIN_DISK_SPACE_LEFT = 15                # in gb
+# TODO
 HEARTBEAT_CHECK_PERIOD = 5             # in seconds
 
 
@@ -26,7 +27,12 @@ class JobFetchException(Exception):
 
 def check_master(ip, port):
     url = 'http://{ip}:{port}/version'.format(ip=ip, port=port)
-    r = requests.get(url)
+
+    try:
+        r = requests.get(url)
+    except requests.exceptions.ConnectionError:
+        return False
+
     if r.status_code != 200:
         # Can't connect to master
         return False
@@ -41,7 +47,12 @@ def check_master(ip, port):
 
 def get_job(ip, port):
     url = 'http://{ip}:{port}/jobs/'.format(ip=ip, port=port)
-    r = requests.get(url)
+
+    try:
+        r = requests.get(url)
+    except requests.exceptions.ConnectionError as e:
+        raise JobFetchException('Request failed') from e
+
     if r.status_code != 200:
         raise JobFetchException('Request failed ({})'.format(r.status_code))
 
@@ -61,11 +72,15 @@ def get_job(ip, port):
 
 def get_input_file(ip, port, job_id, path):
     url = 'http://{ip}:{port}/jobs/{job_id}'.format(ip=ip, port=port, job_id=job_id)
-    r = requests.get(url, stream=True)
+
+    try:
+        r = requests.get(url, stream=True)
+    except requests.exceptions.ConnectionError as e:
+        raise JobFetchException('Could not fetch input file') from e
 
     filename = re.findall('filename=(.+)', r.headers['content-disposition'])
     if len(filename) != 1:
-        raise Exception()
+        raise JobFetchException('Could not fetch input file')
     filename = filename[0]
 
     filepath = os.path.join(path, filename)
@@ -87,7 +102,11 @@ def send_files(ip, port, job_id, files, temp_dir):
         file_dict[os.path.basename(f)] = open(os.path.join(temp_dir, f), 'rb')
 
     url = 'http://{ip}:{port}/jobs/{job_id}'.format(ip=ip, port=port, job_id=job_id)
-    r = requests.post(url, files=file_dict, data=status)
+
+    try:
+        r = requests.post(url, files=file_dict, data=status)
+    except requests.exceptions.ConnectionError:
+        raise JobFetchException('Could not send files to server')
 
 
 class HeartbeatContextManager(object):
@@ -100,12 +119,18 @@ class HeartbeatContextManager(object):
     def do_hearbeat(self):
         status = {'state': 'WORKING'}
         url = 'http://{ip}:{port}/jobs/{job_id}'.format(ip=self.ip, port=self.port, job_id=self.job_id)
-        r = requests.post(url, files={}, data=status)
+        try:
+            r = requests.post(url, files={}, data=status)
+        except requests.exceptions.ConnectionError:
+            logger.warning('Heartbeat failed')
+            # TODO: cancel current job
 
     def heartbeat_thread(self):
         while self.keep_running:
             time.sleep(HEARTBEAT_CHECK_PERIOD)
-            self.do_hearbeat()
+            # Only send heartbeat, if it is still requested
+            if self.keep_running:
+                self.do_hearbeat()
 
     def __enter__(self):
         self.t = threading.Thread(target=self.heartbeat_thread)
@@ -118,7 +143,7 @@ class HeartbeatContextManager(object):
 
 def slave_start(ip, port):
     if not check_master(ip, port):
-        logger.error('drm version on master/slave do not match')
+        logger.error('Server not running or drm version on master/slave do not match')
         return
 
     while True:
@@ -136,7 +161,11 @@ def slave_start(ip, port):
             break
 
         with HeartbeatContextManager(ip, port, job_id):
-            input_file_name = get_input_file(ip, port, job_id, temp_dir.name)
+            try:
+                input_file_name = get_input_file(ip, port, job_id, temp_dir.name)
+            except JobFetchException:
+                logger.error('Could not fetch input file')
+                break
 
             in_path = os.path.join(temp_dir.name, input_file_name)
             titles = handbrake.scan_disc(in_path, 'use_libdvdread' in fixes)
@@ -149,8 +178,12 @@ def slave_start(ip, port):
 
             out_list = handbrake.encode_titles(hb_config, rip_config, fixes, titles, in_path, temp_dir.name)
 
-            send_files(ip, port, job_id, out_list, temp_dir.name)
+            try:
+                send_files(ip, port, job_id, out_list, temp_dir.name)
+            except JobFetchException:
+                logger.error('Could not send files')
+                break
 
-        logger.info('job done')
+        logger.info('Job done')
 
     logger.info('All jobs done...')

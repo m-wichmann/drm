@@ -121,10 +121,15 @@ class Title(object):
 class Disc(object):
     def __init__(self, local_path):
         self.titles = []
+        # TODO: should path be relative to in_path???
         self.local_path = local_path
 
     def __str__(self):
-        ret = self.local_path + ' (' + ''.join([str(t) for t in self.titles]) + ')'
+        ret = self. local_path
+        if (len(self.titles) > 0):
+            ret += ' ('
+            ret += ''.join([str(t) for t in self.titles])
+            ret += ')'
         return ret
 
     def __repr__(self):
@@ -138,7 +143,7 @@ class HandbrakeConfig(object):
             raise Exception('Preset invalid')
         if h264_profile not in ['baseline', 'main', 'high', 'high10', 'high422', 'high444']:
             raise Exception('Profile invalid')
-        if h264_level not in ['4.1']:
+        if h264_level not in ['1.0', '1b', '1.1', '1.2', '1.3', '2.0', '2.1', '2.2', '3.0', '3.1', '3.2', '4.0', '4.1', '4.2', '5.0', '5.1', '5.2']:
             raise Exception('Level invalid')
 
         self.preset = preset

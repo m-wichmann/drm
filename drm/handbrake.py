@@ -26,6 +26,7 @@ def check_env():
 def scan_disc(disc_path, use_libdvdread=False):
     # TODO: detect if disc_path does not exist
     # TODO: accept disc as argument
+    # TODO: Maybe try libdvdread if dvdnav returns no titles?!
 
     logger.info('Scanning %s...' % (disc_path))
     cmd = [HANDBRAKE_CLI_BIN, '-i', disc_path, '-t', '0']
@@ -139,7 +140,7 @@ def _build_cmd_line(input_file, output, title, a_tracks, s_tracks, preset=None, 
         raise Exception('Preset invalid')
     if h264_profile not in ['baseline', 'main', 'high', 'high10', 'high422', 'high444']:
         raise Exception('Profile invalid')
-    if h264_level not in ['4.1']:   # TODO
+    if h264_level not in ['1.0', '1b', '1.1', '1.2', '1.3', '2.0', '2.1', '2.2', '3.0', '3.1', '3.2', '4.0', '4.1', '4.2', '5.0', '5.1', '5.2']:
         raise Exception('Level invalid')
 
     cmd = ['HandBrakeCLI']

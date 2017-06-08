@@ -123,7 +123,9 @@ def master(hb_config, rip_config, fixes, in_path, out_path):
             disc = Disc(os.path.join(root, f))
             job = Job(disc, rip_config, hb_config, fixes)
             job_queue.append(job)
-            logger.debug('creating job {}'.format(job))
+            logger.debug('Creating job {}'.format(job))
+
+    logger.info('Created {} jobs'.format(len(job_queue)))
 
     # TODO: ip/port
     master_start_server('0.0.0.0', 5001, job_queue, out_path)
@@ -205,6 +207,8 @@ def rip(out_dir):
 
 
 def list_titles(target_dir, rip_config, fixes):
+    # TODO: Maybe try libdvdread if dvdnav returns no titles?!
+
     use_libdvdread = False
     if 'use_libdvdread' in fixes:
         use_libdvdread = True
@@ -302,7 +306,7 @@ def drm_main():
         log_level_drm = logging.DEBUG
         log_level_werkzeug = logging.DEBUG
     else:
-        log_level_drm = logging.NOTSET
+        log_level_drm = logging.DEBUG
         log_level_werkzeug = logging.NOTSET
 
     # flask/werkzeug logger
