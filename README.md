@@ -1,6 +1,6 @@
 # drm - distributed russian mob
 
-Distributed video transcoder based on HandBrake and Celery.
+Distributed video transcoder based on HandBrake.
 
 
 ## Dependencies
@@ -13,29 +13,9 @@ You also have to install Handbrake or rather HandBrakeCLI on all slaves.
 
     apt install handbrake-cli
 
-The master needs to install a broker for celery. Currently only RabbitMQ is
-supported and tested. You should configure a user for drm in RabbitMQ.
-
-    apt install rabbitmq-server
-
 To rip DVD images, the following tools are used: dvdbackup, genisoimage, eject.
 
 To set properties of mkv files, mkvpropedit is used, which is part of mkvtoolnix.
-
-
-## Deployment
-
-Check if host configuration is ok: Host name set and entry for 127.0.0.1 in
-hosts file.
-
-Set up user and vhost in RabbitMQ:
-
-    sudo rabbitmqctl add_user myuser mypassword
-    sudo rabbitmqctl add_vhost myvhost
-    sudo rabbitmqctl set_permissions -p myvhost myuser ".*" ".*" ".*"
-
-Create slave config (ip address of the master and the user/password for rabbitmq
-e.g. "myuser"/"mypassword")
 
 
 ## Workflow
@@ -71,5 +51,3 @@ e.g. "myuser"/"mypassword")
 ## Links
 
 * [Handbrake](http://handbrake.fr)
-* [Celery](http://celeryproject.org)
-* [RabbitMQ](http://rabbitmq.com)

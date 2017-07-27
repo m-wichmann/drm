@@ -121,7 +121,6 @@ class Title(object):
 class Disc(object):
     def __init__(self, local_path):
         self.titles = []
-        # TODO: should path be relative to in_path???
         self.local_path = local_path
 
     def __str__(self):

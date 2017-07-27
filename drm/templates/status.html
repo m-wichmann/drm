@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+
+      body {
+        font-family: "Helvetica", Arial, sans-serif;
+      }
+
+      /* Table */
+      .divTable {
+      	display: table;
+      	width: 100%;
+      }
+
+      /* Row groups */
+      .divTableHeader {
+        display: table-header-group;
+      	background-color: #4CAF50;
+        color: white;
+      }
+      .divTableBody {
+        display: table-row-group;
+      }
+      .divTableFooter {
+        display: table-footer-group;
+        background-color: #eeeeee;
+        font-weight: bold;
+      }
+
+      /* Row */
+      .divTableRow {
+      	display: table-row;
+      }
+
+      .divTableRowFile {
+        display: table-row;
+        color:blue;
+      }
+
+      /* Cells */
+      .divTableCell, .divTableHead, .divTableFoot {
+        display: table-cell;
+      	padding: 3px 10px;
+      }
+
+      .footer {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        padding: 0.2rem;
+        font-size: 80%;
+        background-color: #eeeeee;
+        text-align: center;
+      }
+
+      .tableDesc {
+        font-size: 20px;
+      }
+
+      .configTable {
+        display: none;
+      }
+      .configTableHeader {
+        display: table-header-group;
+        padding: 0.2rem;
+        background-color: #4CAF50;
+        color: white;
+      }
+      .configTableRow {
+        display: table-row;
+      }
+      .configTableEntry {
+        display: table-cell;
+      }
+
+      .divTableRow:hover {background-color: #f5f5f5}
+
+      .config_collapse {
+        color: red;
+      }
+
+      .uuid {
+        font-family: monospace;
+      }
+    </style>
+
+    <script type="text/javascript">
+      function toggleConfigVisibility() {
+        if (document.getElementById('config').style.display === 'block') {
+          document.getElementById('config').style.display = 'none';
+          document.getElementById('config_header').innerHTML = '+ Config';
+        } else {
+          document.getElementById('config').style.display = 'block';
+          document.getElementById('config_header').innerHTML = '- Config';
+        }
+
+      }
+    </script>
+  </head>
+  <body>
+
+    <h1>D.R.M.</h1>
+
+    <!-- Working jobs -->
+    <div class="tableDesc">Working ({{ working | length }})</div>
+    <div class="divTable">
+      <div class="divTableHeader">
+        <div class="divTableHead">Job-Id</div>
+        <div class="divTableHead">Input-File</div>
+        <div class="divTableHead">Slave</div>
+      </div>
+      <div class="divTableBody">
+        {% for job in working %}
+        <div class="divTableRow">
+          <div class="divTableCell"><div class="uuid">{{ job.name }}</div></div>
+          <div class="divTableCell">{{ job.disc.local_path }}</div>
+          <div class="divTableCell">{{ working[job][0] }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Pending jobs -->
+    <div class="tableDesc">Pending ({{ waiting | length }})</div>
+    <div class="divTable">
+      <div class="divTableHeader">
+        <div class="divTableHead">Job-Id</div>
+        <div class="divTableHead">Input-File</div>
+      </div>
+      <div class="divTableBody">
+        {% for job in waiting %}
+        <div class="divTableRow">
+          <div class="divTableCell"><div class="uuid">{{ job.name }}</div></div>
+          <div class="divTableCell">{{ job.disc.local_path }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Done jobs -->
+    <div class="tableDesc">Done ({{ done | length }})</div>
+    <div class="divTable">
+      <div class="divTableHeader">
+        <div class="divTableHead">Job-Id</div>
+        <div class="divTableHead">Input-File</div>
+      </div>
+      <div class="divTableBody">
+        {% for job in done %}
+        <div class="divTableRow">
+          <div class="divTableCell"><div class="uuid">{{ job.name }}</div></div>
+          <div class="divTableCell">{{ job.disc.local_path }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Config -->
+    </p>
+    <h3 id="config_header" onclick="toggleConfigVisibility();">+ Config</h3>
+    <div class="configTable" id="config">
+      <div class="configTableHeader">
+        <div class="configTableEntry">Handbrake Config</div>
+        <div class="configTableEntry"></div>
+      </div>
+      <div class="configTableRow">
+        <div class="configTableEntry">Preset</div>
+        <div class="configTableEntry">{{ hb_config.preset }}</div>
+      </div>
+      <div class="configTableRow">
+        <div class="configTableEntry">Quality</div>
+        <div class="configTableEntry">{{ hb_config.quality }}</div>
+      </div>
+      <div class="configTableRow">
+        <div class="configTableEntry">H264 Preset</div>
+        <div class="configTableEntry">{{ hb_config.h264_preset }}</div>
+      </div>
+      <div class="configTableRow">
+        <div class="configTableEntry">H264 Profile</div>
+        <div class="configTableEntry">{{ hb_config.h264_profile }}</div>
+      </div>
+      <div class="configTableRow">
+        <div class="configTableEntry">H264 Level</div>
+        <div class="configTableEntry">{{ hb_config.h264_level }}</div>
+      </div>
+
+      <div class="configTableHeader">
+        <div class="configTableEntry">Rip Config</div>
+        <div class="configTableEntry"></div>
+      </div>
+      <div class="configTableRow">
+        <div class="configTableEntry">Length Range</div>
+        <div class="configTableEntry">{{ rip_config.len_range[0] | format_len_range_config }} - {{ rip_config.len_range[1] | format_len_range_config }}</div>
+      </div>
+      <div class="configTableRow">
+        <div class="configTableEntry">Audio Languages</div>
+        <div class="configTableEntry">{{ rip_config.a_lang | join(', ') }}</div>
+      </div>
+      <div class="configTableRow">
+        <div class="configTableEntry">Subtitle Languages</div>
+        <div class="configTableEntry">{{ rip_config.s_lang | join(', ') }}</div>
+      </div>
+
+      <div class="configTableHeader">
+        <div class="configTableEntry">Fixes</div>
+        <div class="configTableEntry"></div>
+      </div>
+      {% for fix in fixes %}
+      <div class="configTableRow">
+        <div class="configTableEntry">{{ fix.name }}</div>
+        <div class="configTableEntry">{{ fix.value if fix.value != None }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Footer -->
+    &nbsp;<div class="footer">Generated using <a href="https://github.com/m-wichmann/drm">DRM</a> at {{ generated_time }}.</div>
+
+  </body>
+</html>

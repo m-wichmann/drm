@@ -11,6 +11,7 @@ import json
 import threading
 import queue
 import textwrap
+import re
 import pathlib
 import logging
 
@@ -30,6 +31,9 @@ MIN_DISK_SPACE_LEFT = 15                # in gb
 
 # TODO: support subdirs
 # TODO: detect new files during runtime
+# TODO: maybe add prefix to tempfile
+# TODO: Check if file already fully copied (for master)
+# TODO: Implement state site via flask
 
 
 class InvalidConfigException(Exception):
@@ -137,6 +141,8 @@ def slave(ip, port):
 
 
 def rip(out_dir):
+    # TODO: show progress via shutil.disk_usage('/tmp/tmp.../')
+
     if not any([dvdbackup_check(), genisoimage_check(), eject_check()]):
         logger.error('Some necessary tool not found (dvdbackup, genisoimage, eject)')
         return
@@ -173,10 +179,8 @@ def rip(out_dir):
         rip_success = True
 
         try:
-            if rip_success:
-                rip_success = dvdbackup(temp_dir.name, name)
-            if rip_success:
-                rip_success = genisoimage(out_path, os.path.join(temp_dir.name, name))
+            dvdbackup(temp_dir.name, name)
+            genisoimage(out_path, os.path.join(temp_dir.name, name))
         except KeyboardInterrupt:
             break
 
@@ -201,6 +205,7 @@ def rip(out_dir):
             rip_success = False
 
         if rip_success:
+            # TODO: limit print prec
             logger.info('Done {} [{} GB, {}]!'.format(name, image_size / (1024 * 1024 * 1024), time_done - time_started))
         else:
             logger.warning('Failed {} [{}]'.format(name, time_done - time_started))
@@ -223,14 +228,25 @@ def list_titles(target_dir, rip_config, fixes):
 
 
 def set_properties(target_dir):
+    allowed_pattern = r'''[^a-zA-Z0-9\-() .',_!'äöüÄÖÜ]'''
+    invalid_file_name_msg = 'File name invalid: '
+
     for root, dirs, files in os.walk(target_dir):
         for f in files:
             if os.path.splitext(f)[1] != '.mkv':
                 continue
 
+            # Check if file seems valid
+            matches = re.finditer(allowed_pattern, f)
+            match_pos = [e.span()[0] for e in matches]
+            if match_pos:
+                marker = ''.join(['^' if i in match_pos else ' ' for i in range(len(f))])
+                logger.warning('%s%s', invalid_file_name_msg, f)
+                logger.warning('%s%s', ' '*len(invalid_file_name_msg), marker)
+
+            # Set mkv properties
             path = os.path.join(root, f)
             title = os.path.splitext(f)[0]
-
             mkvpropedit(path, title)
 
 
@@ -385,6 +401,7 @@ def drm_main():
         except PathIsDirException:
             list_dir = args.list
             list_rip_config = RipConfig(len_range=(10, 200))
+            fixes = []
 
         list_titles(list_dir, list_rip_config, fixes)
 

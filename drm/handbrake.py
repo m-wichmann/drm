@@ -179,10 +179,11 @@ def _build_cmd_line(input_file, output, title, a_tracks, s_tracks, preset=None, 
 def _encode_title(hb_config, rip_config, fixes, in_path, out_path, title, chapters=None):
     title_path = ''
     if chapters is None:
-        logger.info('encoding title {}'.format(title.index))
+        logger.info('Encoding title {}'.format(title.index))
         title_path = os.path.basename(in_path) + '.' + str(title.index) + '.mkv'
+
     else:
-        logger.info('encoding title {} chapters {}-{}'.format(title.index, chapters[0], chapters[1]))
+        logger.info('Encoding title {} chapters {}-{}'.format(title.index, chapters[0], chapters[1]))
         title_path = os.path.basename(in_path) + '.' + str(title.index) + '.' + str(chapters[0]) + '.mkv'
 
     title_out_path = os.path.join(out_path, title_path)
@@ -206,8 +207,6 @@ def _encode_title(hb_config, rip_config, fixes, in_path, out_path, title, chapte
 
 
 def encode_titles(hb_config, rip_config, fixes, titles, in_path, out_path):
-    logger.info('encoding titles...')
-
     ret = []
 
     # Special case fix 'split_every_chapters'
