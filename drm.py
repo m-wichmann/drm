@@ -228,7 +228,7 @@ def list_titles(target_dir, rip_config, fixes):
 
 
 def set_properties(target_dir):
-    allowed_pattern = r'''[^a-zA-Z0-9\-() .',_!'äöüÄÖÜ]'''
+    allowed_pattern = r'''[^a-zA-Z0-9\-() .',_!&äöüÄÖÜ]'''
     invalid_file_name_msg = 'File name invalid: '
 
     for root, dirs, files in os.walk(target_dir):
