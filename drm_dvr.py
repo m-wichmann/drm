@@ -78,8 +78,8 @@ def init(args):
         return
 
     with open(os.path.join(args.init, cutlist_file_name), 'w') as fd:
-        fd.write('# Copy block below for every part that should be included in the output.')
-        fd.write('# Timestamp format: h:m:s.ms. Unused parts can be omitted.')
+        fd.write('# Copy block below for every part that should be included in the output.\n')
+        fd.write('# Timestamp format: h:m:s.ms. Unused parts can be omitted.\n')
         fd.write('file {}\n'.format(concat_file_name))
         fd.write('inpoint 0:0:0\n')
         fd.write('outpoint 1:0:0\n')
