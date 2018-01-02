@@ -48,6 +48,26 @@ To set properties of mkv files, mkvpropedit is used, which is part of mkvtoolnix
         ./drm.py --prop /path/to/files
 
 
+## DVR converter
+
+Additionaly this package contains a script to cut, crop and reencode DVR recordings with only a single reencoding. This isn't as polished, as the main script and should be used with care. It was only tested with one DVR and makes a couple of assumptions, that probably won't hold, with others.
+
+If you are still eager to try it, install ffmpeg (probably already installed with Handbrake) and follow the steps below. The directory used in the commands has to contain the actual streams. The stream is expected to be split into multiple files, that are named aufnahme00.trp and so on.
+
+1. Initializes the recording (concatenates the stream files)
+        ./drm_dvr.py --init /some/dir/
+
+2. Edit the cutlist to remove ads. You can just open the file /some/dir/cutlist.txt by hand, since this command does not really work yet.
+        ./drm_dvr.py --edit /some/dir/
+
+3. Preview the recording and optionally add and configure the delogo and crop filters. Both use, more or less, the format specified by the ffmpeg filters.
+        ./drm_dvr.py --preview /some/dir/ --delogo x=100:y=100:w=10:h=10 --crop in_w-20:in_h-152
+
+4. Encode the recording with the previously configured filters und cutlist. After it is done, the file /some/dir/out.mkv should be the final recording.
+        ./drm_dvr.py --encode /some/dir/ --delogo x=100:y=100:w=10:h=10 --crop in_w-20:in_h-152
+
+
 ## Links
 
-* [Handbrake](http://handbrake.fr)
+* [Handbrake](https://handbrake.fr)
+* [ffmpeg](https://ffmpeg.org/)
