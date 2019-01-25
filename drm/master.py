@@ -7,7 +7,6 @@ import time
 import os
 
 from flask import Flask, Response, request, render_template, send_from_directory
-import jinja2
 import requests
 
 import drm
@@ -40,6 +39,7 @@ def format_len_range_config(value):
     else:
         out = '{h}h{m:02}m'.format(h=h, m=m)
     return out
+
 
 flask_app.jinja_env.filters['format_len_range_config'] = format_len_range_config
 

@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import time
 import datetime
 import logging
@@ -28,86 +29,31 @@ def scan_disc(disc_path, use_libdvdread=False):
     # TODO: accept disc as argument
     # TODO: Maybe try libdvdread if dvdnav returns no titles?!
 
+    title_list_key = 'JSON Title Set:'
+
     logger.info('Scanning %s...' % (disc_path))
-    cmd = [HANDBRAKE_CLI_BIN, '-i', disc_path, '-t', '0']
+    cmd = [HANDBRAKE_CLI_BIN, '-i', disc_path, '--json', '-t', '0']
 
     if use_libdvdread:
         cmd.extend(['--no-dvdnav'])
 
     (retval, stdout, stderr) = popen_wrapper(cmd)
 
-    titles = _parse_scan(stderr)
+    stdout = stdout[stdout.find(title_list_key) + len(title_list_key):]
+    data = json.loads(stdout)
+    titles = []
+    for title in data['TitleList']:
+        title_temp = Title(int(title['Index']))
+        title_temp.duration = datetime.timedelta(hours=title['Duration']['Hours'], minutes=title['Duration']['Minutes'], seconds=title['Duration']['Seconds'])
+        for a_track_idx, a_track in enumerate(title['AudioList']):
+            title_temp.a_tracks.append(Track(a_track_idx + 1, a_track['LanguageCode']))
+        for s_track_idx, s_track in enumerate(title['SubtitleList']):
+            title_temp.s_tracks.append(Track(s_track_idx + 1, s_track['LanguageCode']))
+        for chapter_idx, chapter in enumerate(title['ChapterList']):
+            chapter_length = chapter['Duration']['Hours'] * 3600 + chapter['Duration']['Minutes'] * 60 + chapter['Duration']['Seconds']
+            title_temp.chapters.append(Chapter(chapter_idx + 1, chapter_length))
+        titles.append(title_temp)
     return titles
-
-
-def _parse_scan(scan_output):
-    scan_output = scan_output.split('\n')
-    temp = []
-    for line in scan_output:
-        if '+ ' in line:
-            temp.append(line)
-
-    in_s_tracks = False
-    in_a_tracks = False
-    in_chapters = False
-    title_temp = None
-    title_list = []
-    for line in temp:
-        if (in_a_tracks or in_s_tracks or in_chapters) and (line[:4] == '  + '):
-            in_s_tracks = False
-            in_a_tracks = False
-            in_chapters = False
-
-        if '  + audio tracks:' in line:
-            in_a_tracks = True
-            continue
-        elif '  + subtitle tracks:' in line:
-            in_s_tracks = True
-            continue
-        elif '  + chapters:' in line:
-            in_chapters = True
-            continue
-        elif '  + duration:' in line:
-            temp = line[14:].split(':')
-            title_temp.duration = datetime.timedelta(hours=int(temp[0]), minutes=int(temp[1]), seconds=int(temp[2]))
-            continue
-        elif '+ title ' in line:
-            title_temp = Title(int(line[8:-1]))
-            title_list.append(title_temp)
-            in_s_tracks = False
-            in_a_tracks = False
-            continue
-        elif in_a_tracks:
-            begin = line.find('iso639-2: ')
-            if begin != -1:
-                begin += len('iso639-2: ')
-                end = line.find(')', begin)
-                lang = line[begin:end]
-                temp1 = line.find('+ ') + len('+ ')
-                temp2 = line.find(', ', temp1)
-                idx = line[temp1:temp2]
-                title_temp.a_tracks.append(Track(int(idx), str(lang)))
-        elif in_s_tracks:
-            begin = line.find('iso639-2: ')
-            if begin != -1:
-                begin += len('iso639-2: ')
-                end = line.find(')', begin)
-                lang = line[begin:end]
-                temp1 = line.find('+ ') + len('+ ')
-                temp2 = line.find(', ', temp1)
-                idx = line[temp1:temp2]
-                title_temp.s_tracks.append(Track(int(idx), str(lang)))
-        elif in_chapters:
-            # parse chapter number
-            marker = line.find(':')
-            if marker != -1:
-                no = int(line[6:marker])
-                # parse length and calculate seconds
-                marker = line.find('duration') + len('duration') + 1
-                t = time.strptime(line[marker:], '%H:%M:%S')
-                length = t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec
-                title_temp.chapters.append(Chapter(no, length))
-    return title_list
 
 
 def filter_titles(title_list, min_time, max_time, a_lang_list, s_lang_list):
@@ -143,7 +89,7 @@ def _build_cmd_line(input_file, output, title, a_tracks, s_tracks, preset=None, 
     if h264_level not in ['1.0', '1b', '1.1', '1.2', '1.3', '2.0', '2.1', '2.2', '3.0', '3.1', '3.2', '4.0', '4.1', '4.2', '5.0', '5.1', '5.2']:
         raise Exception('Level invalid')
 
-    cmd = ['HandBrakeCLI']
+    cmd = [HANDBRAKE_CLI_BIN]
     cmd.extend(['-i', input_file])
     cmd.extend(['-o', output])
     cmd.extend(['-t', str(title)])
@@ -262,6 +208,6 @@ def remove_duplicate_tracks(titles):
     for track in titles:
         if track != last:
             ret.append(track)
-        last = t
+        last = track
 
     return ret

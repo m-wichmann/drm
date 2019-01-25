@@ -1,6 +1,5 @@
 import json
 import tempfile
-import re
 import os
 import shutil
 import threading
@@ -25,8 +24,10 @@ HEARTBEAT_CHECK_PERIOD = 5             # in seconds
 class JobFailedError(Exception):
     pass
 
+
 class AllJobsDoneError(Exception):
     pass
+
 
 class ServerNotAvailableError(Exception):
     pass
