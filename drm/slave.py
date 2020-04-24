@@ -100,7 +100,7 @@ def get_input_file(ip, port, job_id, path):
     if r.status_code == 200:
         with open(filepath, 'wb') as fd:
             for chunk in r.iter_content(1024):
-                    fd.write(chunk)
+                fd.write(chunk)
 
     real_file_size = os.stat(filepath).st_size
 

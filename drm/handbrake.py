@@ -37,7 +37,15 @@ def scan_disc(disc_path, use_libdvdread=False):
     if use_libdvdread:
         cmd.extend(['--no-dvdnav'])
 
-    (retval, stdout, stderr) = popen_wrapper(cmd)
+    try:
+        (retval, stdout, stderr) = popen_wrapper(cmd, timeout=60)
+    except TimeoutExpired:
+        logger.error('Scanning failed (timeout)')
+        return []
+
+    if stdout.find(title_list_key) == -1:
+        logger.error('Scanning failed (no title set output)')
+        return []
 
     stdout = stdout[stdout.find(title_list_key) + len(title_list_key):]
     data = json.loads(stdout)

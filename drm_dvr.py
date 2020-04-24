@@ -8,9 +8,13 @@ import subprocess
 import codecs
 import logging
 import textwrap
+import json
+import tempfile
 
 import drm
 from drm.util import popen_wrapper
+
+import schnipp.schnipp as schnipp
 
 
 logger = logging.getLogger('drm')
@@ -22,7 +26,25 @@ FFPLAY_BIN = 'ffplay'
 input_file_pattern = r'''aufnahme[0-9]{2}.trp'''
 concat_file_name = 'concat.mp4'
 cutlist_file_name = 'cutlist.txt'
+cfg_file_name = 'drm_dvr.cfg'
 output_file_name = 'out.mkv'
+
+
+class EncodeConfig(object):
+    def __init__(self, path=None):
+        if path is None:
+            self.cutlist = []
+            self.crop = None
+            self.delogo = None
+        else:
+            with open(path, 'r') as fd:
+                data = json.load(fd)
+            self.cutlist = data['cutlist']
+            self.crop = data['crop']
+            self.delogo = data['delogo']
+
+    def dumps(self):
+        return json.dumps({'cutlist': self.cutlist, 'crop': self.crop, 'delogo': self.delogo}, indent=2)
 
 
 def ffmpeg_check():
@@ -34,25 +56,17 @@ def ffmpeg_check():
         return False
 
 
-def build_ffmpeg_filter(args, verbose):
-    delogo_pattern = r'''x=[0-9]+:y=[0-9*]+:w=[0-9*]+:h=[0-9*]+'''
-    crop_pattern = r'''in_w(-[0-9]+)?:in_h(-[0-9]+)?'''
-
+def build_ffmpeg_filter(cfg, verbose):
     filter_cmd = []
 
-    if args.delogo:
-        if not re.match(delogo_pattern, args.delogo):
-            raise ValueError('delogo filter format invalid')
+    if cfg.delogo:
         if verbose:
-            filter_cmd.append('delogo=show=1:{}'.format(args.delogo))
+            filter_cmd.append('delogo=show=1:x={}:y={}:w={}:h={}'.format(cfg.delogo[0], cfg.delogo[1], cfg.delogo[2], cfg.delogo[3]))
         else:
-            filter_cmd.append('delogo=show=0:{}'.format(args.delogo))
+            filter_cmd.append('delogo=show=0:x={}:y={}:w={}:h={}'.format(cfg.delogo[0], cfg.delogo[1], cfg.delogo[2], cfg.delogo[3]))
 
-    if args.crop:
-        if not re.match(crop_pattern, args.crop):
-            logger.info('Crop filter format currently limited')
-            raise ValueError('crop filter format invalid')
-        filter_cmd.append('crop={}'.format(args.crop))
+    if cfg.crop:
+        filter_cmd.append('crop=in_w-{}:in_h-{}'.format(cfg.crop[0], cfg.crop[1]))
 
     if filter_cmd:
         return ['-vf', '{}'.format(', '.join(filter_cmd))]
@@ -60,62 +74,89 @@ def build_ffmpeg_filter(args, verbose):
         return []
 
 
-def init(args):
+def init(path):
     rec_file_pattern = re.compile(input_file_pattern)
-    files = os.listdir(args.init)
+    files = os.listdir(path)
     files = sorted(filter(rec_file_pattern.match, files))
-    files = [os.path.join(args.init, f) for f in files]
+    files = [os.path.join(path, f) for f in files]
 
     if not files:
         logger.error('no input files found')
         return
 
     #ffmpeg -i 'concat:aufnahme00.trp|aufnahme01.trp' -codec copy concat.mp4
-    cmd = [FFMPEG_BIN, '-nostdin', '-i', 'concat:{}'.format('|'.join(files)), '-codec', 'copy', os.path.join(args.init, concat_file_name)]
+    cmd = [FFMPEG_BIN, '-nostdin', '-i', 'concat:{}'.format('|'.join(files)), '-codec', 'copy', os.path.join(path, concat_file_name)]
     (retval, stdout, stderr) = popen_wrapper(cmd)
     if retval:
-        logger.error('ffmpeg failed. Directory already initialized?')
+        logger.warning('ffmpeg failed. Directory {} already initialized?'.format(path))
         return
 
-    with open(os.path.join(args.init, cutlist_file_name), 'w') as fd:
-        fd.write('# Copy block below for every part that should be included in the output.\n')
-        fd.write('# Timestamp format: h:m:s.ms. Unused parts can be omitted.\n')
-        fd.write('file {}\n'.format(concat_file_name))
-        fd.write('inpoint 0:0:0\n')
-        fd.write('outpoint 1:0:0\n')
+    cfg = EncodeConfig()
+    with open(os.path.join(path, cfg_file_name), 'w') as fd:
+        fd.write(cfg.dumps())
 
 
-def edit(args):
-    # TODO: support different editor
-    (retval, stdout, stderr) = popen_wrapper(['atom', os.path.join(args.edit, cutlist_file_name)])
+def init_dir(path):
+    info_path = os.path.join(path, 'info.xml')
+    if os.path.isfile(info_path):
+        init(os.path.join(path, '~aufnahme'))
+    else:
+        for d in os.listdir(path):
+            entry_path = os.path.join(path, d)
+            info_path = os.path.join(entry_path, 'info.xml')
+            if os.path.isfile(info_path):
+                init(os.path.join(entry_path, '~aufnahme'))
 
 
-def preview(args):
+def preview(path):
+    info_path = os.path.join(path, 'info.xml')
+    if not os.path.isfile(info_path):
+        logger.error('invalid preview path')
+        return
+
+    path = os.path.join(path, '~aufnahme')
+    cfg = EncodeConfig(os.path.join(path, cfg_file_name))
+
     # ffplay -vf "delogo=x=636:y=84:w=27:h=42, crop=in_w:in_h-152" concat.mp4
     cmd = [FFPLAY_BIN]
-    try:
-        cmd += build_ffmpeg_filter(args, True)
-    except ValueError:
-        logger.error('Filter format invalid. (e.g. --delogo=x=636:y=84:w=27:h=42 --crop=in_w:in_h-152)')
-        return
-    cmd.append(os.path.join(args.preview, concat_file_name))
+    cmd += build_ffmpeg_filter(cfg, True)
+    cmd.append(os.path.join(path, concat_file_name))
     (retval, stdout, stderr) = popen_wrapper(cmd)
 
 
-def encode(args):
+def encode(path):
+    print('Encoding {}'.format(path))
+
+    cfg = EncodeConfig(os.path.join(path, cfg_file_name))
+    cutlist_path = os.path.join(path, cutlist_file_name)
+
+    with open(cutlist_path, 'w') as fd:
+        for cut in cfg.cutlist:
+            fd.write('file concat.mp4\n')
+            fd.write('inpoint {}\n'.format(cut[0]))
+            fd.write('outpoint {}\n'.format(cut[1]))
+
     # ffmpeg -f concat -i list.txt -vf "delogo=x=636:y=84:w=27:h=42, crop=in_w:in_h-152" -c:v libx264 -preset slow -crf 22 -c:a copy out.mkv
-    cmd = [FFMPEG_BIN, '-nostdin', '-f', 'concat', '-i', os.path.join(args.encode, cutlist_file_name)]
-    try:
-        cmd += build_ffmpeg_filter(args, False)
-    except ValueError:
-        logger.error('Filter format invalid. (e.g. --delogo=x=636:y=84:w=27:h=42 --crop=in_w:in_h-152)')
-        return
-    cmd += ['-c:v', 'libx264', '-preset', 'slow', '-crf', '22', '-c:a', 'copy', os.path.join(args.encode, output_file_name)]
+    cmd = [FFMPEG_BIN, '-nostdin', '-f', 'concat', '-i', cutlist_path]
+    cmd += build_ffmpeg_filter(cfg, False)
+    cmd += ['-c:v', 'libx264', '-preset', 'slow', '-crf', '22', '-c:a', 'copy', os.path.join(path, output_file_name)]
     (retval, stdout, stderr) = popen_wrapper(cmd)
 
     if retval:
-        logger.error('ffmpeg failed. Does output file ({}) already exist?'.format(os.path.join(args.encode, output_file_name)))
+        logger.error('ffmpeg failed. Does output file ({}) already exist?'.format(os.path.join(path, output_file_name)))
         return
+
+
+def encode_dir(path):
+    info_path = os.path.join(path, 'info.xml')
+    if os.path.isfile(info_path):
+        encode(os.path.join(path, '~aufnahme'))
+    else:
+        for d in sorted(os.listdir(path)):
+            entry_path = os.path.join(path, d)
+            info_path = os.path.join(entry_path, 'info.xml')
+            if os.path.isfile(info_path):
+                encode(os.path.join(entry_path, '~aufnahme'))
 
 
 def help_build_epilog():
@@ -140,9 +181,6 @@ def drm_dvr_main():
 
     parser.add_argument('--version', action='version', version='%(prog)s ' + drm.__version__)
 
-    parser.add_argument('--delogo', action='store', help='remove logo from recording (used with preview and encode)')
-    parser.add_argument('--crop', action='store', help='crop recording (used with preview and encode)')
-
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--init', action='store', help='initialize DVR recording for encoding')
     group.add_argument('--edit', action='store', help='edit concat list to remove ads')
@@ -152,17 +190,14 @@ def drm_dvr_main():
     args = parser.parse_args()
 
     if args.init:
-        if args.delogo or args.crop:
-            logger.warn('--delog and --crop not used with --init')
-        init(args)
+        init_dir(args.init)
     elif args.edit:
-        if args.delogo or args.crop:
-            logger.warn('--delog and --crop not used with --edit')
-        edit(args)
+        path = 'file://' + os.path.abspath(args.edit) + '/~aufnahme'
+        schnipp.run(path)
     elif args.preview:
-        preview(args)
+        preview(args.preview)
     elif args.encode:
-        encode(args)
+        encode_dir(args.encode)
 
 
 if __name__ == '__main__':
