@@ -29,10 +29,10 @@ def popen_wrapper(cmd, timeout=None):
     return (retval, stdout, stderr)
 
 
-def dvdbackup(output_dir, title_name):
+def dvdbackup(output_dir, title_name, disk_path):
     cmd = [DVDBACKUP_BIN,
            '-M',                    # 'mirror'; Backup whole DVD
-           '-i', '/dev/dvd',        # input device
+           '-i', disk_path,         # input device
            '-o', output_dir,        # output directory
            '-n', title_name]        # Title name
     (retval, stdout, stderr) = popen_wrapper(cmd)

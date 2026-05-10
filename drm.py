@@ -83,6 +83,7 @@ def parse_cfg_master(cfg_path):
 
             in_path = data['in_path']
             out_path = data['out_path']
+            disk_path = data['disk_path']
     except (KeyError, json.decoder.JSONDecodeError):
         raise InvalidConfigException('Config is invalid')
     except FileNotFoundError:
@@ -90,7 +91,7 @@ def parse_cfg_master(cfg_path):
     except IsADirectoryError:
         raise PathIsDirException('Config file expected, directory found')
 
-    return (hb_config, rip_config, fixes, in_path, out_path)
+    return (hb_config, rip_config, fixes, in_path, out_path, disk_path)
 
 
 def parse_cfg_slave(cfg_path):
@@ -140,7 +141,7 @@ def slave(ip, port):
     slave_start(ip, port)
 
 
-def rip(out_dir):
+def rip(out_dir, disk_path):
     # TODO: show progress via shutil.disk_usage('/tmp/tmp.../')
 
     if not any([dvdbackup_check(), genisoimage_check(), eject_check()]):
@@ -179,7 +180,7 @@ def rip(out_dir):
         rip_success = True
 
         try:
-            dvdbackup(temp_dir.name, name)
+            dvdbackup(temp_dir.name, name, disk_path)
             genisoimage(out_path, os.path.join(temp_dir.name, name))
         except KeyboardInterrupt:
             break
@@ -337,7 +338,7 @@ def drm_main():
 
     if args.master:
         try:
-            (hb_config, rip_config, fixes, in_path, out_path) = parse_cfg_master(args.master)
+            (hb_config, rip_config, fixes, in_path, out_path, disk_path) = parse_cfg_master(args.master)
         except InvalidConfigException:
             parser.error(invalid_config_get_text(expected_master=True, path=args.master))
         except FileNotFoundError:
@@ -368,7 +369,7 @@ def drm_main():
 
         # Try if path is config file, if so, use in_path of config
         try:
-            (hb_config, rip_config, fixes, in_path, out_path) = parse_cfg_master(args.rip)
+            (hb_config, rip_config, fixes, in_path, out_path, disk_path) = parse_cfg_master(args.rip)
 
             if len(fixes) > 0:
                 logger.info('Active fixes:')
@@ -383,7 +384,7 @@ def drm_main():
         except PathIsDirException:
             rip_dir = args.rip
 
-        rip(rip_dir)
+        rip(rip_dir, disk_path)
 
     elif args.list:
         if not handbrake.check_env():
@@ -391,7 +392,7 @@ def drm_main():
 
         # Try if path is config file, if so, use in_path of config
         try:
-            (hb_config, rip_config, fixes, in_path, out_path) = parse_cfg_master(args.list)
+            (hb_config, rip_config, fixes, in_path, out_path, disk_path) = parse_cfg_master(args.list)
             list_dir = in_path
             list_rip_config = rip_config
         except InvalidConfigException:

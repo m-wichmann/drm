@@ -7,7 +7,7 @@ import time
 import requests
 from requests_toolbelt import MultipartEncoder
 import logging
-import cgi
+from email.message import Message
 
 import drm
 from drm.data import HandbrakeConfig, RipConfig, Fix
@@ -87,8 +87,10 @@ def get_input_file(ip, port, job_id, path):
         raise JobFailedError('Could not fetch input file') from e
 
     try:
-        value, params = cgi.parse_header(r.headers['content-disposition'])
-        filename = params['filename']
+        # Parse Header via email module (is close enough and in standard installation)
+        msg = Message()
+        msg['content-disposition'] = r.headers['content-disposition']
+        filename = msg.get_param('filename', header='content-disposition')
     except KeyError as e:
         raise JobFailedError('Could not fetch input file') from e
 

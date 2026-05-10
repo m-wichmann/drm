@@ -139,7 +139,7 @@ def encode(path):
     # ffmpeg -f concat -i list.txt -vf "delogo=x=636:y=84:w=27:h=42, crop=in_w:in_h-152" -c:v libx264 -preset slow -crf 22 -c:a copy out.mkv
     cmd = [FFMPEG_BIN, '-nostdin', '-f', 'concat', '-i', cutlist_path]
     cmd += build_ffmpeg_filter(cfg, False)
-    cmd += ['-c:v', 'libx264', '-preset', 'slow', '-crf', '22', '-c:a', 'copy', os.path.join(path, output_file_name)]
+    cmd += ['-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-c:a', 'copy', os.path.join(path, output_file_name)]
     (retval, stdout, stderr) = popen_wrapper(cmd)
 
     if retval:
